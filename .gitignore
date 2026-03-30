@@ -1,0 +1,21 @@
+# Old defunct code — kept for reference only
+BlueWeb-main/
+BlueWebBackend-main/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# Backend
+backend/__pycache__/
+backend/*.pyc
+backend/.env
+backend/venv/
+backend/.venv/
+
+# Docker
+.env
+
+# OS
+.DS_Store
