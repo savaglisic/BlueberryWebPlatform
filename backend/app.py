@@ -1,23 +1,27 @@
-from flask import Flask, jsonify
-from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
 import os
-
-app = Flask(__name__)
-CORS(app)
-
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
-    "DATABASE_URL", "postgresql://postgres:postgres@db:5432/blueweb"
-)
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-db = SQLAlchemy(app)
+from flask import Flask
+from config import config
+from extensions import db, cors
+from routes import auth_bp, whitelist_bp, plant_data_bp, genotypes_bp, analytics_bp, options_bp
 
 
-@app.route("/api/health")
-def health():
-    return jsonify({"status": "ok"})
+def create_app(env: str | None = None) -> Flask:
+    app = Flask(__name__)
 
+    env = env or os.environ.get("FLASK_ENV", "default")
+    app.config.from_object(config[env])
+
+    db.init_app(app)
+    cors.init_app(app, resources={r"/api/*": {"origins": app.config["CORS_ORIGINS"]}})
+
+    blueprints = [auth_bp, whitelist_bp, plant_data_bp, genotypes_bp, analytics_bp, options_bp]
+    for bp in blueprints:
+        app.register_blueprint(bp, url_prefix="/api")
+
+    return app
+
+
+app = create_app()
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000)
