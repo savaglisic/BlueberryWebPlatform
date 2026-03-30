@@ -7,6 +7,8 @@ services:
       POSTGRES_DB: blueweb
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -22,17 +24,31 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "5000:5000"
+    networks:
+      - internal
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    ports:
-      - "80:80"
+    networks:
+      - internal
     depends_on:
       - backend
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    networks:
+      - internal
+    depends_on:
+      - frontend
+      - backend
+
+networks:
+  internal:
+    driver: bridge
 
 volumes:
   postgres_data:

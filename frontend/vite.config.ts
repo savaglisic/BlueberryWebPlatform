@@ -9,11 +9,8 @@ export default defineConfig({
     watch: {
       usePolling: true,
     },
-    proxy: {
-      '/api': {
-        target: 'http://backend:5000',
-        changeOrigin: true,
-      },
+    hmr: {
+      path: '/__vite_hmr',
     },
   },
 })
