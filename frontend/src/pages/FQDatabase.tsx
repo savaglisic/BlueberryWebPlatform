@@ -116,7 +116,7 @@ function EditModal({ plant, onClose }: { plant: PlantRecord; onClose: () => void
       <TextInput label="notes" value={form.notes ?? ''} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} size="xs" />
       <Group justify="flex-end">
         <Button variant="subtle" onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSave} loading={saving} color="green">Save</Button>
+        <Button onClick={handleSave} loading={saving} color="indigo">Save</Button>
       </Group>
     </Stack>
   )

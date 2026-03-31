@@ -193,7 +193,7 @@ export function AddSamples() {
           <Textarea label="Notes" value={form.notes} onChange={(e) => set('notes')(e.target.value)} rows={2} />
 
           <Group justify="flex-end">
-            <Button onClick={handleSubmit} loading={submitting} color="green" size="md">
+            <Button onClick={handleSubmit} loading={submitting} color="indigo" size="md">
               Save Sample
             </Button>
           </Group>

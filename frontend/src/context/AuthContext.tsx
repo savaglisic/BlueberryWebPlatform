@@ -17,7 +17,8 @@ const AuthContext = createContext<AuthContextType | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<AuthUser | null>(() => {
     const stored = localStorage.getItem('bw_user')
-    return stored ? JSON.parse(stored) : null
+    // Default to admin until Zero Trust is wired up
+    return stored ? JSON.parse(stored) : { email: '', user_group: 'admin' }
   })
 
   const setUser = (u: AuthUser | null) => {

@@ -117,7 +117,7 @@ export function Login() {
               />
             )}
 
-            <Button fullWidth onClick={handleSubmit} loading={loading} color="green">
+            <Button fullWidth onClick={handleSubmit} loading={loading} color="indigo">
               {isNewUser ? 'Create account' : 'Sign in'}
             </Button>
 

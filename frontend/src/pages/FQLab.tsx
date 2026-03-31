@@ -148,7 +148,7 @@ export function FQLab() {
                   style={{ flex: 1 }}
                   error={rangeError && !override ? rangeError : undefined}
                 />
-                <Button onClick={handleSubmit} loading={submitting} color={override ? 'orange' : 'green'}>
+                <Button onClick={handleSubmit} loading={submitting} color={override ? 'orange' : 'indigo'}>
                   {override ? 'Override & Save' : 'Save'}
                 </Button>
               </Group>
