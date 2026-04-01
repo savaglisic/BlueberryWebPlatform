@@ -9,6 +9,7 @@ import {
   useMantineColorScheme,
   Stack,
   Image,
+  Tooltip,
 } from '@mantine/core'
 import {
   IconPlant2,
@@ -18,6 +19,8 @@ import {
   IconSettings,
   IconSun,
   IconMoon,
+  IconLayoutSidebarLeftCollapse,
+  IconLayoutSidebarLeftExpand,
 } from '@tabler/icons-react'
 
 const navItems = [
@@ -29,20 +32,23 @@ const navItems = [
 ]
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const [opened, setOpened] = useState(false)
+  const [mobileOpened, setMobileOpened] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
   const { colorScheme, toggleColorScheme } = useMantineColorScheme()
   const isDark = colorScheme === 'dark'
+
+  const navbarWidth = collapsed ? 60 : 220
 
   return (
     <AppShell
       header={{ height: 60 }}
-      navbar={{ width: 220, breakpoint: 'sm', collapsed: { mobile: !opened } }}
+      navbar={{ width: navbarWidth, breakpoint: 'sm', collapsed: { mobile: !mobileOpened } }}
       padding="md"
     >
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Group gap="xs">
-            <Burger opened={opened} onClick={() => setOpened((o) => !o)} hiddenFrom="sm" size="sm" />
+            <Burger opened={mobileOpened} onClick={() => setMobileOpened((o) => !o)} hiddenFrom="sm" size="sm" />
             <Image
               src={isDark ? '/whitetextnobg_logo.webp' : '/blacktextnobg_logo.webp'}
               alt="BlueWeb"
@@ -58,22 +64,49 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar p="sm">
-        <Stack gap="xs" pt="xs">
-          <Group justify="center" mb="xs">
-            <Image src="/berrylogo.webp" alt="" h={52} fit="contain" />
-          </Group>
-          {navItems.map((item) => (
-            <MantineNavLink
-              key={item.path}
-              component={NavLink}
-              to={item.path}
-              label={item.label}
-              leftSection={<item.icon size={18} />}
-              onClick={() => setOpened(false)}
-              styles={{ root: { borderRadius: 'var(--mantine-radius-sm)' } }}
-            />
-          ))}
+      <AppShell.Navbar p={collapsed ? 4 : 'sm'} style={{ transition: 'width 150ms ease, padding 150ms ease', overflow: 'hidden' }}>
+        <Stack gap="xs" h="100%">
+          <Stack gap={4} style={{ flex: 1 }}>
+            {navItems.map((item) =>
+              collapsed ? (
+                <Tooltip key={item.path} label={item.label} position="right" withArrow>
+                  <MantineNavLink
+                    component={NavLink}
+                    to={item.path}
+                    leftSection={<item.icon size={20} />}
+                    onClick={() => setMobileOpened(false)}
+                    styles={{
+                      root: { borderRadius: 'var(--mantine-radius-sm)', padding: '8px', justifyContent: 'center' },
+                      section: { margin: 0 },
+                    }}
+                  />
+                </Tooltip>
+              ) : (
+                <MantineNavLink
+                  key={item.path}
+                  component={NavLink}
+                  to={item.path}
+                  label={item.label}
+                  leftSection={<item.icon size={18} />}
+                  onClick={() => setMobileOpened(false)}
+                  styles={{ root: { borderRadius: 'var(--mantine-radius-sm)' } }}
+                />
+              )
+            )}
+          </Stack>
+
+          {/* Collapse toggle at bottom */}
+          <Tooltip label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} position="right" withArrow>
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              onClick={() => setCollapsed((c) => !c)}
+              visibleFrom="sm"
+              style={{ alignSelf: collapsed ? 'center' : 'flex-end' }}
+            >
+              {collapsed ? <IconLayoutSidebarLeftExpand size={18} /> : <IconLayoutSidebarLeftCollapse size={18} />}
+            </ActionIcon>
+          </Tooltip>
         </Stack>
       </AppShell.Navbar>
 

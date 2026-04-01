@@ -1,30 +1,47 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  TextInput, NumberInput, Select, Textarea, Button, Paper, Title,
-  Grid, Stack, Group, Badge, Alert, Text, Divider, Modal, ActionIcon,
+  TextInput, NumberInput, Textarea, Button, Paper, Title,
+  Grid, Stack, Group, Alert, Text, Modal,
 } from '@mantine/core'
+import { SelectWithAdd } from '../components/SelectWithAdd'
 import { notifications } from '@mantine/notifications'
-import { IconScan, IconRefresh, IconAlertCircle, IconCheck } from '@tabler/icons-react'
+import { IconScan, IconRefresh, IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { getOptions } from '../api/options'
 import { addPlantData, checkBarcode } from '../api/plantData'
 import { spellCheck } from '../api/genotypes'
+import { useBarcodeScanner } from '../hooks/useBarcodeScanner'
+
+const currentYear = new Date().getFullYear()
+const lastTwoDigits = currentYear.toString().slice(-2)
 
 const EMPTY_FORM = {
-  barcode: '', genotype: '', stage: '', site: '', block: '', project: '',
-  post_harvest: '', bush_plant_number: '', notes: '',
-  mass: '', number_of_berries: '', x_berry_mass: '', box: '',
-  ph: '', brix: '', juicemass: '', tta: '', mladded: '',
+  barcode: '',
+  genotype: '',
+  stage: '' as string | null,
+  site: '' as string | null,
+  block: '' as string | null,
+  project: '' as string | null,
+  post_harvest: '' as string | null,
+  bush_plant_number: '',
+  mass: '' as number | string,
+  number_of_berries: '' as number | string,
+  x_berry_mass: '' as number | string,
+  notes: '',
 }
 
 export function AddSamples() {
-  const [form, setForm] = useState(EMPTY_FORM)
-  const [genotypeSuggestion, setGenotypeSuggestion] = useState<string | null>(null)
-  const [barcodeWarning, setBarcodeWarning] = useState('')
-  const [scannerOpen, setScannerOpen] = useState(false)
+  const [form, setForm] = useState({ ...EMPTY_FORM })
+  const [genotypeSuggestion, setGenotypeSuggestion] = useState('')
+  const [barcodeExistsWarning, setBarcodeExistsWarning] = useState(false)
+  const [yearWarning, setYearWarning] = useState(false)
+  const [invalidBarcodeModal, setInvalidBarcodeModal] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+
   const barcodeRef = useRef<HTMLInputElement>(null)
+  const genotypeRef = useRef<HTMLInputElement>(null)
   const genotypeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevBarcodeRef = useRef('')
 
   const { data: optionConfigs = [] } = useQuery({ queryKey: ['options'], queryFn: getOptions })
 
@@ -33,51 +50,124 @@ export function AddSamples() {
 
   useEffect(() => { barcodeRef.current?.focus() }, [])
 
-  const handleBarcodeBlur = async () => {
-    const b = form.barcode.trim()
-    if (!b) return
-    if (!/^\d{7}$/.test(b)) {
-      setBarcodeWarning('Barcode should be 7 digits')
-      return
+  useBarcodeScanner((scanned) => {
+    // Only accept digits, truncate to 7
+    const digits = scanned.replace(/\D/g, '').slice(0, 7)
+    if (!digits) return
+    setForm((f) => ({ ...EMPTY_FORM, barcode: digits }))
+    setBarcodeExistsWarning(false)
+    setGenotypeSuggestion('')
+    prevBarcodeRef.current = ''
+    // Trigger the barcode effect manually since state update is async
+    if (digits.length === 7) {
+      setTimeout(() => genotypeRef.current?.focus(), 50)
+      checkBarcodeInBackend(digits)
     }
-    setBarcodeWarning('')
+  })
+
+  // Barcode side effects: auto-advance, year warning, reset on change, recall
+  useEffect(() => {
+    const cur = form.barcode
+    const prev = prevBarcodeRef.current
+
+    // If barcode changed after previously being 7 digits, reset form
+    if (prev.length === 7 && cur !== prev) {
+      setForm((f) => ({ ...EMPTY_FORM, barcode: cur }))
+      setBarcodeExistsWarning(false)
+      setGenotypeSuggestion('')
+    }
+    prevBarcodeRef.current = cur
+
+    // Year prefix warning
+    setYearWarning(cur.length >= 2 && cur.slice(0, 2) !== lastTwoDigits)
+
+    // On hitting exactly 7 digits: focus genotype and check backend
+    if (cur.length === 7) {
+      genotypeRef.current?.focus()
+      checkBarcodeInBackend(cur)
+    }
+  }, [form.barcode])
+
+  const checkBarcodeInBackend = async (barcode: string) => {
     try {
-      const data = await checkBarcode(b)
-      if (data && !data.error) {
-        notifications.show({ message: 'Existing record found — fields pre-filled', color: 'blue' })
-        setForm((f) => ({ ...f, ...Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v ?? ''])) }))
+      const data = await checkBarcode(barcode)
+      if (!data.error) {
+        setBarcodeExistsWarning(true)
+        setForm((f) => ({
+          ...f,
+          genotype: data.genotype ?? f.genotype,
+          stage: data.stage ?? f.stage,
+          site: data.site ?? f.site,
+          block: data.block ?? f.block,
+          project: data.project ?? f.project,
+          post_harvest: data.post_harvest ?? f.post_harvest,
+          bush_plant_number: data.bush_plant_number ?? f.bush_plant_number,
+          mass: data.mass ?? f.mass,
+          number_of_berries: data.number_of_berries ?? f.number_of_berries,
+          x_berry_mass: data.x_berry_mass ?? f.x_berry_mass,
+          notes: data.notes ?? f.notes,
+        }))
+      } else {
+        setBarcodeExistsWarning(false)
       }
-    } catch { /* new barcode */ }
+    } catch {
+      setBarcodeExistsWarning(false)
+    }
   }
 
-  const handleGenotypeChange = (val: string) => {
-    setForm((f) => ({ ...f, genotype: val }))
-    setGenotypeSuggestion(null)
+  const handleBarcodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value
+    if (/^\d{0,7}$/.test(v)) {
+      setForm((f) => ({ ...f, barcode: v }))
+    }
+  }
+
+  const handleGenotypeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value
+    setForm((f) => ({ ...f, genotype: v }))
+    setGenotypeSuggestion('')
     if (genotypeTimer.current) clearTimeout(genotypeTimer.current)
-    if (val.length < 2) return
-    genotypeTimer.current = setTimeout(async () => {
-      try {
-        const res = await spellCheck(val)
-        if (res.match_type === 'partial') setGenotypeSuggestion(res.suggestions[0])
-        else if (res.match_type === 'exact') setGenotypeSuggestion(null)
-      } catch { /* ignore */ }
-    }, 500)
+    if (v.length > 2) {
+      genotypeTimer.current = setTimeout(async () => {
+        try {
+          const res = await spellCheck(v)
+          if (res.match_type === 'exact') {
+            // Check capitalization
+            if (isNaN(Number(v)) && v[0] !== v[0].toUpperCase()) {
+              const corrected = v.charAt(0).toUpperCase() + v.slice(1)
+              setGenotypeSuggestion(`Did you mean to capitalize genotype ${corrected}?`)
+            } else {
+              setGenotypeSuggestion('')
+            }
+          } else if (res.match_type === 'partial') {
+            setGenotypeSuggestion(`Did you mean: ${res.suggestions[0]}?`)
+          } else {
+            setGenotypeSuggestion('Are you sure? Not found in database.')
+          }
+        } catch { /* ignore */ }
+      }, 500)
+    }
   }
-
-  const set = (field: string) => (val: string | number | null) =>
-    setForm((f) => ({ ...f, [field]: val ?? '' }))
 
   const handleSubmit = async () => {
-    if (!form.barcode) {
-      notifications.show({ message: 'Barcode is required', color: 'red' })
+    if (form.barcode.length < 7) {
+      setInvalidBarcodeModal(true)
       return
     }
+
     setSubmitting(true)
     try {
-      await addPlantData({ ...form, barcode: form.barcode } as any)
-      notifications.show({ message: 'Sample saved successfully', color: 'green', icon: <IconCheck size={16} /> })
-      setForm(EMPTY_FORM)
-      setGenotypeSuggestion(null)
+      const payload: Record<string, unknown> = { ...form }
+      // Convert empty strings to null
+      Object.keys(payload).forEach((k) => {
+        if (payload[k] === '') payload[k] = null
+      })
+      await addPlantData(payload as any)
+      notifications.show({ message: 'Sample saved successfully', color: 'green' })
+      setForm({ ...EMPTY_FORM })
+      setBarcodeExistsWarning(false)
+      setGenotypeSuggestion('')
+      prevBarcodeRef.current = ''
       barcodeRef.current?.focus()
     } catch {
       notifications.show({ message: 'Failed to save sample', color: 'red' })
@@ -86,122 +176,175 @@ export function AddSamples() {
     }
   }
 
+  const handleReset = () => {
+    setForm({ ...EMPTY_FORM })
+    setBarcodeExistsWarning(false)
+    setYearWarning(false)
+    setGenotypeSuggestion('')
+    prevBarcodeRef.current = ''
+    barcodeRef.current?.focus()
+  }
+
   return (
     <Stack>
       <Group justify="space-between">
         <Title order={3}>Add Samples</Title>
-        <Button leftSection={<IconRefresh size={16} />} variant="subtle" onClick={() => { setForm(EMPTY_FORM); setGenotypeSuggestion(null) }}>
+        <Button leftSection={<IconRefresh size={16} />} variant="subtle" onClick={handleReset}>
           Reset
         </Button>
       </Group>
 
       <Paper withBorder p="md" radius="md">
         <Stack>
-          <Title order={5}>Identification</Title>
-          <Grid>
-            <Grid.Col span={{ base: 12, sm: 6 }}>
-              <TextInput
-                label="Barcode"
-                placeholder="7-digit barcode"
-                ref={barcodeRef}
-                value={form.barcode}
-                onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))}
-                onBlur={handleBarcodeBlur}
-                error={barcodeWarning || undefined}
-                rightSection={
-                  <ActionIcon variant="subtle" onClick={() => setScannerOpen(true)}>
-                    <IconScan size={16} />
-                  </ActionIcon>
-                }
-              />
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, sm: 6 }}>
-              <Stack gap={4}>
-                <TextInput
-                  label="Genotype"
-                  placeholder="e.g. FL 86-19"
-                  value={form.genotype}
-                  onChange={(e) => handleGenotypeChange(e.target.value)}
-                />
-                {genotypeSuggestion && (
-                  <Alert icon={<IconAlertCircle size={14} />} color="yellow" variant="light" p="xs">
-                    Did you mean{' '}
-                    <Text span fw={600} style={{ cursor: 'pointer' }} onClick={() => { setForm((f) => ({ ...f, genotype: genotypeSuggestion })); setGenotypeSuggestion(null) }}>
-                      {genotypeSuggestion}
-                    </Text>
-                    ?
-                  </Alert>
-                )}
-              </Stack>
-            </Grid.Col>
 
-            {[
-              { field: 'stage', label: 'Stage' },
-              { field: 'site', label: 'Site' },
-              { field: 'block', label: 'Block' },
-              { field: 'project', label: 'Project' },
-              { field: 'post_harvest', label: 'Post Harvest' },
-            ].map(({ field, label }) => (
+          {/* Barcode */}
+          <Stack gap={4}>
+            <TextInput
+              label="Barcode"
+              placeholder="7-digit barcode"
+              ref={barcodeRef}
+              value={form.barcode}
+              onChange={handleBarcodeChange}
+              inputMode="numeric"
+              maxLength={7}
+              required
+              rightSection={
+                <IconScan size={16} style={{ cursor: 'pointer', opacity: 0.5 }} />
+              }
+            />
+            {barcodeExistsWarning && (
+              <Alert icon={<IconAlertCircle size={14} />} color="red" variant="light" p="xs">
+                WARNING: This barcode already exists in the database. Fields have been pre-filled — you are updating an existing record.
+              </Alert>
+            )}
+            {yearWarning && (
+              <Alert icon={<IconAlertCircle size={14} />} color="orange" variant="light" p="xs">
+                Barcodes should begin with "{lastTwoDigits}" if harvested in {currentYear}.
+              </Alert>
+            )}
+          </Stack>
+
+          {/* Genotype */}
+          <Stack gap={4}>
+            <TextInput
+              label="Genotype"
+              placeholder="e.g. FL 86-19"
+              ref={genotypeRef}
+              value={form.genotype}
+              onChange={handleGenotypeChange}
+              required
+            />
+            {genotypeSuggestion && (
+              <Alert
+                icon={<IconInfoCircle size={14} />}
+                color={genotypeSuggestion.startsWith('Are you sure') ? 'red' : 'yellow'}
+                variant="light"
+                p="xs"
+                style={{ cursor: genotypeSuggestion.includes('Did you mean:') ? 'pointer' : undefined }}
+                onClick={() => {
+                  const match = genotypeSuggestion.match(/Did you mean: (.+?)\?/)
+                  if (match) {
+                    setForm((f) => ({ ...f, genotype: match[1] }))
+                    setGenotypeSuggestion('')
+                  }
+                }}
+              >
+                {genotypeSuggestion}
+                {genotypeSuggestion.includes('Did you mean:') && (
+                  <Text span size="xs" c="dimmed"> (click to apply)</Text>
+                )}
+              </Alert>
+            )}
+          </Stack>
+
+          {/* Dropdowns */}
+          <Grid>
+            {([
+              { field: 'stage', label: 'Stage', required: true },
+              { field: 'site', label: 'Site', required: true },
+              { field: 'block', label: 'Block', required: false },
+              { field: 'project', label: 'Project', required: false },
+              { field: 'post_harvest', label: 'Post Harvest', required: false },
+            ] as const).map(({ field, label, required }) => (
               <Grid.Col span={{ base: 12, sm: 4 }} key={field}>
-                <Select
+                <SelectWithAdd
                   label={label}
+                  optionType={field}
                   data={optionsFor(field)}
-                  value={form[field as keyof typeof form] as string}
-                  onChange={set(field)}
+                  value={form[field] || null}
+                  onChange={(v) => setForm((f) => ({ ...f, [field]: v }))}
                   clearable
+                  required={required}
                 />
               </Grid.Col>
             ))}
 
             <Grid.Col span={{ base: 12, sm: 4 }}>
-              <TextInput label="Bush / Plant #" value={form.bush_plant_number} onChange={(e) => set('bush_plant_number')(e.target.value)} />
+              <TextInput
+                label="Bush / Plant #"
+                value={form.bush_plant_number}
+                onChange={(e) => setForm((f) => ({ ...f, bush_plant_number: e.target.value }))}
+              />
             </Grid.Col>
           </Grid>
 
-          <Divider label="Yield" labelPosition="left" />
+          {/* Yield fields */}
           <Grid>
-            <Grid.Col span={{ base: 6, sm: 3 }}>
-              <NumberInput label="Mass (g)" value={form.mass as any} onChange={set('mass')} decimalScale={2} />
+            <Grid.Col span={{ base: 6, sm: 4 }}>
+              <NumberInput
+                label="Mass (g)"
+                value={form.mass as number}
+                onChange={(v) => setForm((f) => ({ ...f, mass: v }))}
+                decimalScale={2}
+              />
             </Grid.Col>
-            <Grid.Col span={{ base: 6, sm: 3 }}>
-              <NumberInput label="# Berries" value={form.number_of_berries as any} onChange={set('number_of_berries')} />
+            <Grid.Col span={{ base: 6, sm: 4 }}>
+              <NumberInput
+                label="Number of Berries"
+                value={form.number_of_berries as number}
+                onChange={(v) => setForm((f) => ({ ...f, number_of_berries: v }))}
+              />
             </Grid.Col>
-            <Grid.Col span={{ base: 6, sm: 3 }}>
-              <NumberInput label="Avg Berry Mass (g)" value={form.x_berry_mass as any} onChange={set('x_berry_mass')} decimalScale={2} />
-            </Grid.Col>
-            <Grid.Col span={{ base: 6, sm: 3 }}>
-              <NumberInput label="Box" value={form.box as any} onChange={set('box')} />
+            <Grid.Col span={{ base: 6, sm: 4 }}>
+              <NumberInput
+                label="Avg Berry Mass (g)"
+                value={form.x_berry_mass as number}
+                onChange={(v) => setForm((f) => ({ ...f, x_berry_mass: v }))}
+                decimalScale={2}
+              />
             </Grid.Col>
           </Grid>
 
-          <Divider label="Fruit Quality" labelPosition="left" />
-          <Grid>
-            {[
-              { field: 'ph', label: 'pH' },
-              { field: 'brix', label: 'Brix' },
-              { field: 'tta', label: 'TTA' },
-              { field: 'juicemass', label: 'Juice Mass (g)' },
-              { field: 'mladded', label: 'mL Added' },
-            ].map(({ field, label }) => (
-              <Grid.Col span={{ base: 6, sm: 4 }} key={field}>
-                <NumberInput label={label} value={form[field as keyof typeof form] as any} onChange={set(field)} decimalScale={3} />
-              </Grid.Col>
-            ))}
-          </Grid>
-
-          <Divider label="Notes" labelPosition="left" />
-          <Textarea label="Notes" value={form.notes} onChange={(e) => set('notes')(e.target.value)} rows={2} />
+          {/* Notes */}
+          <Textarea
+            label="Notes"
+            value={form.notes}
+            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+            minRows={3}
+          />
 
           <Group justify="flex-end">
             <Button onClick={handleSubmit} loading={submitting} color="indigo" size="md">
-              Save Sample
+              Submit
             </Button>
           </Group>
         </Stack>
       </Paper>
 
-      <Modal opened={scannerOpen} onClose={() => setScannerOpen(false)} title="Scan Barcode" centered>
-        <Text c="dimmed" size="sm">Barcode scanner coming soon.</Text>
+      {/* Invalid barcode modal */}
+      <Modal
+        opened={invalidBarcodeModal}
+        onClose={() => setInvalidBarcodeModal(false)}
+        title="Invalid Barcode"
+        centered
+        size="sm"
+      >
+        <Stack>
+          <Text size="sm">
+            A valid barcode must be exactly 7 digits and should begin with "{lastTwoDigits}" for {currentYear}.
+          </Text>
+          <Button onClick={() => setInvalidBarcodeModal(false)}>OK</Button>
+        </Stack>
       </Modal>
     </Stack>
   )
