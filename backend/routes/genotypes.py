@@ -6,6 +6,18 @@ from models import HistoricalRank, HistoricalYield, HistoricalScore, HistoricalF
 genotypes_bp = Blueprint("genotypes", __name__)
 
 
+@genotypes_bp.route("/genotypes", methods=["GET"])
+def list_genotypes():
+    """Return genotype names filtered by an optional prefix, for autocomplete."""
+    q = request.args.get("q", "").strip()
+    limit = request.args.get("limit", 20, type=int)
+    query = Genotype.query
+    if q:
+        query = query.filter(Genotype.genotype.ilike(f"%{q}%"))
+    results = query.order_by(Genotype.genotype).limit(limit).all()
+    return jsonify([g.genotype for g in results])
+
+
 @genotypes_bp.route("/search_genotype", methods=["GET"])
 def search_genotype():
     query = request.args.get("genotype", "")

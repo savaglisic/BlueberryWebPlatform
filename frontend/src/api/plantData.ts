@@ -44,10 +44,10 @@ export const checkBarcode = (barcode: string) =>
 export const deletePlantData = (barcode: string) =>
   client.delete('/delete_plant_data', { data: { barcode } }).then((r) => r.data)
 
-export const getPlantData = (page: number, per_page: number, filters: Filter[]) =>
+export const getPlantData = (page: number, per_page: number, filters: Filter[], yearPrefix?: string) =>
   client
     .get('/get_plant_data', {
-      params: { page, per_page, filters: filters.length ? JSON.stringify(filters) : undefined },
+      params: { page, per_page, filters: filters.length ? JSON.stringify(filters) : undefined, year_prefix: yearPrefix },
     })
     .then((r) => r.data)
 

@@ -64,8 +64,12 @@ def get_plant_data():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 10, type=int)
     filters = request.args.get("filters")
+    year_prefix = request.args.get("year_prefix")
 
     query = PlantData.query
+
+    if year_prefix:
+        query = query.filter(PlantData.barcode.like(f"{year_prefix}%"))
 
     if filters:
         import json
@@ -123,9 +127,35 @@ def fruit_firm():
 
 @plant_data_bp.route("/download_plant_data_csv", methods=["GET"])
 def download_plant_data_csv():
+    import json as _json
+    year_prefix = request.args.get("year_prefix")
+    filters_raw = request.args.get("filters")
+
     columns = [c.name for c in PlantData.__table__.columns]
 
     def generate():
+        query = PlantData.query
+        if year_prefix:
+            query = query.filter(PlantData.barcode.like(f"{year_prefix}%"))
+        if filters_raw:
+            filter_list = _json.loads(filters_raw)
+            include_clauses = []
+            for f in filter_list:
+                field = f.get("field")
+                operator = f.get("operator")
+                value = f.get("value", "")
+                col = getattr(PlantData, field, None)
+                if col is None:
+                    continue
+                if operator == "includes":
+                    include_clauses.append(col.ilike(f"%{value}%"))
+                elif operator == "excludes":
+                    query = query.filter(~col.ilike(f"%{value}%"))
+            if include_clauses:
+                from sqlalchemy import or_
+                query = query.filter(or_(*include_clauses))
+        query = query.order_by(PlantData.id)
+
         buf = io.StringIO()
         writer = csv.writer(buf)
         writer.writerow(columns)
@@ -134,7 +164,7 @@ def download_plant_data_csv():
         offset = 0
         chunk = 100
         while True:
-            rows = PlantData.query.order_by(PlantData.id).offset(offset).limit(chunk).all()
+            rows = query.offset(offset).limit(chunk).all()
             if not rows:
                 break
             for row in rows:

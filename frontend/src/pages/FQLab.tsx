@@ -1,10 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import {
   TextInput, NumberInput, Select, Button, Paper, Title, Stack, Group,
-  Badge, Text, Divider, SimpleGrid, Box, ActionIcon,
+  Badge, Text, Divider, SimpleGrid, Box, ActionIcon, Alert,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconAlertCircle, IconCheck, IconBarcode, IconX } from '@tabler/icons-react'
+
+const currentYear = new Date().getFullYear()
+const lastTwoDigits = currentYear.toString().slice(-2)
 import { useQuery } from '@tanstack/react-query'
 import { getOptions } from '../api/options'
 import type { PlantRecord } from '../api/plantData'
@@ -74,6 +77,7 @@ export function FQLab() {
   const [override, setOverride] = useState(false)
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [yearWarning, setYearWarning] = useState(false)
 
   const barcodeRef = useRef<HTMLInputElement>(null)
   const valueRef = useRef<HTMLInputElement>(null)
@@ -135,6 +139,7 @@ export function FQLab() {
     const digits = scanned.replace(/\D/g, '').slice(0, 7)
     if (!digits) return
     setBarcode(digits)
+    setYearWarning(digits.length >= 2 && digits.slice(0, 2) !== lastTwoDigits)
     doLookup(digits)
   })
 
@@ -198,6 +203,7 @@ export function FQLab() {
               onChange={(e) => {
                 const v = e.target.value.replace(/\D/g, '').slice(0, 7)
                 setBarcode(v)
+                setYearWarning(v.length >= 2 && /^\d{2}/.test(v) && v.slice(0, 2) !== lastTwoDigits)
                 if (v.length === 7) doLookup(v)
               }}
               onKeyDown={(e) => e.key === 'Enter' && doLookup(barcode)}
@@ -206,7 +212,7 @@ export function FQLab() {
               style={{ flex: 1 }}
               rightSection={
                 barcode ? (
-                  <ActionIcon variant="subtle" color="gray" size="sm" onClick={() => { setBarcode(''); setPlant(null); barcodeRef.current?.focus() }}>
+                  <ActionIcon variant="subtle" color="gray" size="sm" onClick={() => { setBarcode(''); setPlant(null); setYearWarning(false); barcodeRef.current?.focus() }}>
                     <IconX size={14} />
                   </ActionIcon>
                 ) : null
@@ -216,6 +222,11 @@ export function FQLab() {
               Look up
             </Button>
           </Group>
+          {yearWarning && (
+            <Alert icon={<IconAlertCircle size={14} />} color="red" variant="filled" p="xs">
+              ⚠ This barcode starts with "{barcode.slice(0, 2)}" — that indicates 20{barcode.slice(0, 2)}, not the current year ({currentYear}). Are you sure this is correct?
+            </Alert>
+          )}
         </Stack>
       </Paper>
 
@@ -259,6 +270,7 @@ export function FQLab() {
                     value={inputValue}
                     onChange={handleValueChange}
                     decimalScale={3}
+                    step={0.1}
                     style={{ flex: 1 }}
                   />
                   <Button

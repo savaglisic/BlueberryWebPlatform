@@ -62,6 +62,7 @@ export function SelectWithAdd({ label, optionType, data, value, onChange, requir
         onChange={handleChange}
         required={required}
         clearable={clearable}
+        searchable
       />
 
       <Modal

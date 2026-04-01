@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import {
   Title, Stack, Group, Button, SegmentedControl, TextInput, Table,
   Pagination, Modal, Select, NumberInput, Text, ActionIcon, Badge,
-  Paper, Loader, Center, Popover, Checkbox, ScrollArea, Divider,
+  Paper, Loader, Center, Popover, Checkbox, ScrollArea, Divider, Grid, Switch,
 } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
@@ -11,6 +11,8 @@ import { IconDownload, IconTrash, IconEdit, IconPlus, IconX, IconSearch, IconCol
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { PlantRecord, Filter } from '../api/plantData'
 import { getPlantData, deletePlantData, addPlantData, pivotFruitQuality } from '../api/plantData'
+import { getOptions } from '../api/options'
+import { SelectWithAdd } from '../components/SelectWithAdd'
 
 const PAGE_SIZE = 20
 
@@ -90,8 +92,12 @@ function EditModal({ plant, onClose }: { plant: PlantRecord; onClose: () => void
   const [form, setForm] = useState<Partial<PlantRecord>>(plant)
   const [saving, setSaving] = useState(false)
   const qc = useQueryClient()
+  const { data: optionConfigs = [] } = useQuery({ queryKey: ['options'], queryFn: getOptions })
 
-  const numericFields = ['mass', 'number_of_berries', 'x_berry_mass', 'ph', 'brix', 'tta', 'juicemass', 'mladded', 'avg_firmness', 'avg_diameter']
+  const optionsFor = (type: string) =>
+    optionConfigs.filter((o) => o.option_type === type).map((o) => ({ value: o.option_text, label: o.option_text }))
+
+  const setField = (field: string) => (v: unknown) => setForm((f) => ({ ...f, [field]: v }))
 
   const handleSave = async () => {
     setSaving(true)
@@ -109,15 +115,74 @@ function EditModal({ plant, onClose }: { plant: PlantRecord; onClose: () => void
 
   return (
     <Stack>
-      <Group grow>
-        {numericFields.map((field) => (
-          <NumberInput key={field} label={field} value={(form as any)[field] ?? ''} onChange={(v) => setForm((f) => ({ ...f, [field]: v }))} decimalScale={3} size="xs" />
-        ))}
-      </Group>
-      <TextInput label="notes" value={form.notes ?? ''} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} size="xs" />
-      <Group justify="flex-end">
+      {/* Identity */}
+      <Text fw={600} size="sm">Identity</Text>
+      <Grid>
+        <Grid.Col span={6}>
+          <TextInput label="Barcode" value={form.barcode ?? ''} disabled />
+        </Grid.Col>
+        <Grid.Col span={6}>
+          <TextInput label="Genotype" value={form.genotype ?? ''} onChange={(e) => setField('genotype')(e.target.value)} />
+        </Grid.Col>
+        <Grid.Col span={4}>
+          <SelectWithAdd label="Stage" optionType="stage" data={optionsFor('stage')} value={form.stage ?? null} onChange={setField('stage')} clearable />
+        </Grid.Col>
+        <Grid.Col span={4}>
+          <SelectWithAdd label="Site" optionType="site" data={optionsFor('site')} value={form.site ?? null} onChange={setField('site')} clearable />
+        </Grid.Col>
+        <Grid.Col span={4}>
+          <SelectWithAdd label="Block" optionType="block" data={optionsFor('block')} value={form.block ?? null} onChange={setField('block')} clearable />
+        </Grid.Col>
+        <Grid.Col span={4}>
+          <SelectWithAdd label="Project" optionType="project" data={optionsFor('project')} value={form.project ?? null} onChange={setField('project')} clearable />
+        </Grid.Col>
+        <Grid.Col span={4}>
+          <SelectWithAdd label="Post Harvest" optionType="post_harvest" data={optionsFor('post_harvest')} value={form.post_harvest ?? null} onChange={setField('post_harvest')} clearable />
+        </Grid.Col>
+        <Grid.Col span={4}>
+          <TextInput label="Bush / Plant #" value={form.bush_plant_number ?? ''} onChange={(e) => setField('bush_plant_number')(e.target.value)} />
+        </Grid.Col>
+      </Grid>
+
+      <Divider label="Yield" labelPosition="left" />
+      <Grid>
+        <Grid.Col span={4}>
+          <NumberInput label="Mass (g)" value={form.mass ?? ''} onChange={setField('mass')} decimalScale={2} step={0.1} />
+        </Grid.Col>
+        <Grid.Col span={4}>
+          <NumberInput label="# Berries" value={form.number_of_berries ?? ''} onChange={setField('number_of_berries')} />
+        </Grid.Col>
+        <Grid.Col span={4}>
+          <NumberInput label="Avg Berry Mass (g)" value={form.x_berry_mass ?? ''} onChange={setField('x_berry_mass')} decimalScale={2} step={0.1} />
+        </Grid.Col>
+        <Grid.Col span={4}>
+          <NumberInput label="Box" value={form.box ?? ''} onChange={setField('box')} />
+        </Grid.Col>
+      </Grid>
+
+      <Divider label="Fruit Quality" labelPosition="left" />
+      <Grid>
+        <Grid.Col span={4}><NumberInput label="pH" value={form.ph ?? ''} onChange={setField('ph')} decimalScale={3} step={0.1} /></Grid.Col>
+        <Grid.Col span={4}><NumberInput label="Brix" value={form.brix ?? ''} onChange={setField('brix')} decimalScale={3} step={0.1} /></Grid.Col>
+        <Grid.Col span={4}><NumberInput label="TTA" value={form.tta ?? ''} onChange={setField('tta')} decimalScale={3} step={0.1} /></Grid.Col>
+        <Grid.Col span={4}><NumberInput label="Juice Mass (g)" value={form.juicemass ?? ''} onChange={setField('juicemass')} decimalScale={3} step={0.1} /></Grid.Col>
+        <Grid.Col span={4}><NumberInput label="mL Added" value={form.mladded ?? ''} onChange={setField('mladded')} decimalScale={3} step={0.1} /></Grid.Col>
+      </Grid>
+
+      <Divider label="Firmness" labelPosition="left" />
+      <Grid>
+        <Grid.Col span={3}><NumberInput label="Avg Firmness" value={form.avg_firmness ?? ''} onChange={setField('avg_firmness')} decimalScale={3} step={0.1} /></Grid.Col>
+        <Grid.Col span={3}><NumberInput label="Avg Diameter" value={form.avg_diameter ?? ''} onChange={setField('avg_diameter')} decimalScale={3} step={0.1} /></Grid.Col>
+        <Grid.Col span={3}><NumberInput label="SD Firmness" value={form.sd_firmness ?? ''} onChange={setField('sd_firmness')} decimalScale={3} step={0.1} /></Grid.Col>
+        <Grid.Col span={3}><NumberInput label="SD Diameter" value={form.sd_diameter ?? ''} onChange={setField('sd_diameter')} decimalScale={3} step={0.1} /></Grid.Col>
+      </Grid>
+
+      <Divider label="Notes" labelPosition="left" />
+      <TextInput value={form.notes ?? ''} onChange={(e) => setField('notes')(e.target.value)} />
+
+      <Group justify="flex-end" mt="sm">
         <Button variant="subtle" onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSave} loading={saving} color="indigo">Save</Button>
+        <Button onClick={handleSave} loading={saving} color="indigo">Save Changes</Button>
       </Group>
     </Stack>
   )
@@ -163,21 +228,26 @@ function ColumnPicker({ visible, onChange }: { visible: Set<keyof PlantRecord>; 
 }
 
 export function FQDatabase() {
+  const currentYearPrefix = new Date().getFullYear().toString().slice(-2)
+
   const [view, setView] = useState<'table' | 'yield'>('table')
   const [page, setPage] = useState(1)
   const [filters, setFilters] = useState<Filter[]>([])
   const [activeFilters, setActiveFilters] = useState<Filter[]>([])
+  const [currentYearOnly, setCurrentYearOnly] = useState(true)
   const [editPlant, setEditPlant] = useState<PlantRecord | null>(null)
   const [editOpen, { open: openEdit, close: closeEdit }] = useDisclosure(false)
   const [yieldSearch, setYieldSearch] = useState('')
   const [visibleCols, setVisibleCols] = useState<Set<keyof PlantRecord>>(loadVisibleCols)
   const qc = useQueryClient()
 
+  const activeYearPrefix = currentYearOnly ? currentYearPrefix : undefined
+
   const displayCols = ALL_COLUMNS.filter((c) => visibleCols.has(c.key))
 
   const { data: tableData, isFetching: tableFetching } = useQuery({
-    queryKey: ['plant-data', page, activeFilters],
-    queryFn: () => getPlantData(page, PAGE_SIZE, activeFilters),
+    queryKey: ['plant-data', page, activeFilters, activeYearPrefix],
+    queryFn: () => getPlantData(page, PAGE_SIZE, activeFilters, activeYearPrefix),
     enabled: view === 'table',
   })
 
@@ -207,7 +277,16 @@ export function FQDatabase() {
 
   // Stream download directly through the browser — no JS buffering, handles any dataset size
   const handleDownload = (type: 'data' | 'yield') => {
-    const url = type === 'data' ? '/api/download_plant_data_csv' : '/api/download_yield'
+    let url: string
+    if (type === 'data') {
+      const params = new URLSearchParams()
+      if (activeYearPrefix) params.set('year_prefix', activeYearPrefix)
+      if (activeFilters.length) params.set('filters', JSON.stringify(activeFilters))
+      const qs = params.toString()
+      url = `/api/download_plant_data_csv${qs ? `?${qs}` : ''}`
+    } else {
+      url = '/api/download_yield'
+    }
     const a = document.createElement('a')
     a.href = url
     a.download = type === 'data' ? 'plant_data.csv' : 'yield.csv'
@@ -224,6 +303,12 @@ export function FQDatabase() {
       <Group justify="space-between">
         <Title order={3}>FQ Database</Title>
         <Group>
+          <Switch
+            label={`20${currentYearPrefix} only`}
+            checked={currentYearOnly}
+            onChange={(e) => { setCurrentYearOnly(e.currentTarget.checked); setPage(1) }}
+            size="sm"
+          />
           <Button
             leftSection={<IconDownload size={16} />}
             variant="light"

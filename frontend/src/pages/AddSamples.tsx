@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   TextInput, NumberInput, Textarea, Button, Paper, Title,
-  Grid, Stack, Group, Alert, Text, Modal,
+  Grid, Stack, Group, Alert, Text, Modal, ActionIcon,
 } from '@mantine/core'
 import { SelectWithAdd } from '../components/SelectWithAdd'
 import { notifications } from '@mantine/notifications'
-import { IconScan, IconRefresh, IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
+import { IconBarcode, IconRefresh, IconAlertCircle, IconInfoCircle, IconX } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { getOptions } from '../api/options'
 import { addPlantData, checkBarcode } from '../api/plantData'
@@ -78,8 +78,8 @@ export function AddSamples() {
     }
     prevBarcodeRef.current = cur
 
-    // Year prefix warning
-    setYearWarning(cur.length >= 2 && cur.slice(0, 2) !== lastTwoDigits)
+    // Year prefix warning — flag if first 2 digits don't match current year
+    setYearWarning(cur.length >= 2 && /^\d{2}/.test(cur) && cur.slice(0, 2) !== lastTwoDigits)
 
     // On hitting exactly 7 digits: focus genotype and check backend
     if (cur.length === 7) {
@@ -194,22 +194,30 @@ export function AddSamples() {
         </Button>
       </Group>
 
+      {/* Barcode entry card — always visible */}
       <Paper withBorder p="md" radius="md">
-        <Stack>
-
-          {/* Barcode */}
+        <Stack gap="xs">
+          <Group gap="xs" align="center">
+            <IconBarcode size={20} opacity={0.5} />
+            <Text fw={600}>Scan or enter a barcode to begin</Text>
+          </Group>
+          <Text size="sm" c="dimmed">
+            Use a handheld scanner or type a 7-digit barcode. The rest of the form will appear once a valid barcode is entered.
+          </Text>
           <Stack gap={4}>
             <TextInput
-              label="Barcode"
-              placeholder="7-digit barcode"
+              placeholder="e.g. 2600123"
               ref={barcodeRef}
               value={form.barcode}
               onChange={handleBarcodeChange}
               inputMode="numeric"
               maxLength={7}
-              required
               rightSection={
-                <IconScan size={16} style={{ cursor: 'pointer', opacity: 0.5 }} />
+                form.barcode ? (
+                  <ActionIcon variant="subtle" color="gray" size="sm" onClick={handleReset}>
+                    <IconX size={14} />
+                  </ActionIcon>
+                ) : null
               }
             />
             {barcodeExistsWarning && (
@@ -218,11 +226,19 @@ export function AddSamples() {
               </Alert>
             )}
             {yearWarning && (
-              <Alert icon={<IconAlertCircle size={14} />} color="orange" variant="light" p="xs">
-                Barcodes should begin with "{lastTwoDigits}" if harvested in {currentYear}.
+              <Alert icon={<IconAlertCircle size={14} />} color="red" variant="filled" p="xs">
+                ⚠ This barcode starts with "{form.barcode.slice(0, 2)}" — that indicates{' '}
+                20{form.barcode.slice(0, 2)}, not the current year ({currentYear}). Are you sure this is correct?
               </Alert>
             )}
           </Stack>
+        </Stack>
+      </Paper>
+
+      {/* Rest of the form — only shown once a 7-digit barcode is entered */}
+      {form.barcode.length === 7 && (
+      <Paper withBorder p="md" radius="md">
+        <Stack>
 
           {/* Genotype */}
           <Stack gap={4}>
@@ -296,6 +312,7 @@ export function AddSamples() {
                 value={form.mass as number}
                 onChange={(v) => setForm((f) => ({ ...f, mass: v }))}
                 decimalScale={2}
+                step={0.1}
               />
             </Grid.Col>
             <Grid.Col span={{ base: 6, sm: 4 }}>
@@ -311,6 +328,7 @@ export function AddSamples() {
                 value={form.x_berry_mass as number}
                 onChange={(v) => setForm((f) => ({ ...f, x_berry_mass: v }))}
                 decimalScale={2}
+                step={0.1}
               />
             </Grid.Col>
           </Grid>
@@ -330,6 +348,7 @@ export function AddSamples() {
           </Group>
         </Stack>
       </Paper>
+      )}
 
       {/* Invalid barcode modal */}
       <Modal
