@@ -1,125 +1,122 @@
 from flask import Blueprint, request, jsonify
+from sqlalchemy import inspect
 from extensions import db
-from models import (
-    SensoryPanel, SensoryPanelSample, SensoryPanelQuestion,
-    SensoryPanelResult, DEMOGRAPHIC_QUESTIONS,
-)
+from models import SensoryQuestion, SensorySetup, SensorySample, SensoryResult, DEMOGRAPHIC_QUESTIONS
 
 sensory_bp = Blueprint("sensory", __name__)
 
 
-# ── Panel CRUD ────────────────────────────────────────────────────────────────
-
-@sensory_bp.route("/sensory_panels", methods=["GET"])
-def list_panels():
-    panels = SensoryPanel.query.order_by(SensoryPanel.created_at.desc()).all()
-    return jsonify([{
-        "id": p.id,
-        "name": p.name,
-        "panel_date": p.panel_date.isoformat() if p.panel_date else None,
-        "samples_per_panelist": p.samples_per_panelist,
-        "created_at": p.created_at.isoformat() if p.created_at else None,
-    } for p in panels])
+def _ensure_sensory_tables():
+    inspector = inspect(db.engine)
+    existing_tables = set(inspector.get_table_names())
+    required_models = [SensoryQuestion, SensorySetup, SensorySample, SensoryResult]
+    missing_tables = [model.__table__ for model in required_models if model.__tablename__ not in existing_tables]
+    if missing_tables:
+        for table in missing_tables:
+            table.create(db.engine, checkfirst=True)
 
 
-@sensory_bp.route("/sensory_panels", methods=["POST"])
-def create_panel():
-    from datetime import date as _date
-    data = request.get_json()
-    pd_raw = data.get("panel_date")
-    panel = SensoryPanel(
-        name=data["name"],
-        panel_date=_date.fromisoformat(pd_raw) if pd_raw else None,
-        samples_per_panelist=data.get("samples_per_panelist", 5),
-    )
-    db.session.add(panel)
-    db.session.flush()  # get panel.id
+def _get_or_create_setup():
+    _ensure_sensory_tables()
+    setup = SensorySetup.query.get(1)
+    if not setup:
+        setup = SensorySetup(id=1, samples_per_panelist=5)
+        db.session.add(setup)
+        db.session.commit()
+    return setup
 
-    # Seed demographic questions (all disabled by default)
-    for i, dq in enumerate(DEMOGRAPHIC_QUESTIONS):
-        q = SensoryPanelQuestion(
-            panel_id=panel.id,
-            order_index=i,
+
+def _sync_demographic_questions():
+    """Ensure the standard demographic questions exist and default to enabled."""
+    _ensure_sensory_tables()
+    existing_questions = SensoryQuestion.query.filter_by(question_type="demographic").all()
+    existing_by_key = {q.demographic_key: q for q in existing_questions if q.demographic_key}
+    next_index = (db.session.query(db.func.max(SensoryQuestion.order_index)).scalar() or -1) + 1
+    changed = False
+
+    for demographic in DEMOGRAPHIC_QUESTIONS:
+        existing = existing_by_key.get(demographic["key"])
+        if existing:
+            if existing.wording != demographic["wording"]:
+                existing.wording = demographic["wording"]
+                changed = True
+            if existing.options != demographic["options"]:
+                existing.options = demographic["options"]
+                changed = True
+            if existing.enabled is None:
+                existing.enabled = True
+                changed = True
+            continue
+
+        question = SensoryQuestion(
+            order_index=next_index,
             question_type="demographic",
-            wording=dq["wording"],
-            demographic_key=dq["key"],
-            enabled=False,
+            wording=demographic["wording"],
+            demographic_key=demographic["key"],
+            enabled=True,
             capture_video=False,
         )
-        q.options = dq["options"]
-        db.session.add(q)
+        question.options = demographic["options"]
+        db.session.add(question)
+        next_index += 1
+        changed = True
 
-    db.session.commit()
-    return jsonify(panel.to_dict()), 201
-
-
-@sensory_bp.route("/sensory_panels/<int:panel_id>", methods=["GET"])
-def get_panel(panel_id):
-    panel = SensoryPanel.query.get_or_404(panel_id)
-    return jsonify(panel.to_dict())
+    if changed:
+        db.session.commit()
 
 
-@sensory_bp.route("/sensory_panels/<int:panel_id>", methods=["PUT"])
-def update_panel(panel_id):
-    from datetime import date as _date
-    panel = SensoryPanel.query.get_or_404(panel_id)
+@sensory_bp.route("/sensory_setup", methods=["GET"])
+def get_setup():
+    setup = _get_or_create_setup()
+    return jsonify(setup.to_dict())
+
+
+@sensory_bp.route("/sensory_setup", methods=["PUT"])
+def update_setup():
     data = request.get_json()
-    if "name" in data:
-        panel.name = data["name"]
+    setup = _get_or_create_setup()
+
     if "samples_per_panelist" in data:
-        panel.samples_per_panelist = data["samples_per_panelist"]
-    if "panel_date" in data:
-        panel.panel_date = _date.fromisoformat(data["panel_date"]) if data["panel_date"] else None
+        setup.samples_per_panelist = max(1, int(data["samples_per_panelist"]))
+
+    if "samples" in data:
+        SensorySample.query.filter_by(setup_id=setup.id).delete()
+        for index, sample in enumerate(data["samples"]):
+            sample_number = str(sample.get("sample_number", "")).strip()
+            if not sample_number:
+                continue
+            db.session.add(SensorySample(
+                setup_id=setup.id,
+                order_index=index,
+                sample_number=sample_number,
+                real_identifier=(sample.get("real_identifier") or "").strip() or None,
+            ))
+
     db.session.commit()
-    return jsonify(panel.to_dict())
-
-
-@sensory_bp.route("/sensory_panels/<int:panel_id>", methods=["DELETE"])
-def delete_panel(panel_id):
-    panel = SensoryPanel.query.get_or_404(panel_id)
-    db.session.delete(panel)
-    db.session.commit()
-    return jsonify({"status": "ok"})
-
-
-# ── Samples ───────────────────────────────────────────────────────────────────
-
-@sensory_bp.route("/sensory_panels/<int:panel_id>/samples", methods=["PUT"])
-def replace_samples(panel_id):
-    """Replace all samples for a panel in one shot."""
-    panel = SensoryPanel.query.get_or_404(panel_id)
-    data = request.get_json()  # list of {sample_number, true_identifier}
-
-    SensoryPanelSample.query.filter_by(panel_id=panel_id).delete()
-    for s in data:
-        db.session.add(SensoryPanelSample(
-            panel_id=panel.id,
-            sample_number=str(s["sample_number"]),
-            true_identifier=s.get("true_identifier") or None,
-        ))
-    db.session.commit()
-    return jsonify([s.to_dict() for s in panel.samples])
+    return jsonify(setup.to_dict())
 
 
 # ── Questions ─────────────────────────────────────────────────────────────────
 
-@sensory_bp.route("/sensory_panels/<int:panel_id>/questions", methods=["POST"])
-def add_question(panel_id):
-    SensoryPanel.query.get_or_404(panel_id)
+@sensory_bp.route("/sensory_questions", methods=["GET"])
+def list_questions():
+    _sync_demographic_questions()
+    questions = SensoryQuestion.query.order_by(SensoryQuestion.order_index).all()
+    return jsonify([q.to_dict() for q in questions])
+
+
+@sensory_bp.route("/sensory_questions", methods=["POST"])
+def add_question():
     data = request.get_json()
-
-    # Place after last non-demographic question
-    existing = SensoryPanelQuestion.query.filter_by(panel_id=panel_id).all()
-    max_idx = max((q.order_index for q in existing), default=-1)
-
-    q = SensoryPanelQuestion(
-        panel_id=panel_id,
+    if data["question_type"] == "demographic":
+        return jsonify({"error": "Demographic questions are managed automatically"}), 400
+    max_idx = db.session.query(db.func.max(SensoryQuestion.order_index)).scalar() or -1
+    q = SensoryQuestion(
         order_index=max_idx + 1,
         question_type=data["question_type"],
         attribute=data.get("attribute"),
         wording=data.get("wording"),
         capture_video=data.get("capture_video", False),
-        demographic_key=None,
         enabled=True,
     )
     q.options = data.get("options", [])
@@ -128,10 +125,17 @@ def add_question(panel_id):
     return jsonify(q.to_dict()), 201
 
 
-@sensory_bp.route("/sensory_panels/questions/<int:question_id>", methods=["PUT"])
+@sensory_bp.route("/sensory_questions/<int:question_id>", methods=["PUT"])
 def update_question(question_id):
-    q = SensoryPanelQuestion.query.get_or_404(question_id)
+    q = SensoryQuestion.query.get_or_404(question_id)
     data = request.get_json()
+    if q.question_type == "demographic":
+        for field in ("enabled", "order_index"):
+            if field in data:
+                setattr(q, field, data[field])
+        db.session.commit()
+        return jsonify(q.to_dict())
+
     for field in ("attribute", "wording", "capture_video", "enabled", "order_index", "question_type"):
         if field in data:
             setattr(q, field, data[field])
@@ -141,9 +145,9 @@ def update_question(question_id):
     return jsonify(q.to_dict())
 
 
-@sensory_bp.route("/sensory_panels/questions/<int:question_id>", methods=["DELETE"])
+@sensory_bp.route("/sensory_questions/<int:question_id>", methods=["DELETE"])
 def delete_question(question_id):
-    q = SensoryPanelQuestion.query.get_or_404(question_id)
+    q = SensoryQuestion.query.get_or_404(question_id)
     if q.question_type == "demographic":
         return jsonify({"error": "Demographic questions cannot be deleted, only disabled"}), 400
     db.session.delete(q)
@@ -151,14 +155,12 @@ def delete_question(question_id):
     return jsonify({"status": "ok"})
 
 
-@sensory_bp.route("/sensory_panels/<int:panel_id>/questions/reorder", methods=["PUT"])
-def reorder_questions(panel_id):
-    """Accepts [{id, order_index}, ...] and applies the new order."""
-    SensoryPanel.query.get_or_404(panel_id)
-    data = request.get_json()
+@sensory_bp.route("/sensory_questions/reorder", methods=["PUT"])
+def reorder_questions():
+    data = request.get_json()  # [{id, order_index}, ...]
     for item in data:
-        q = SensoryPanelQuestion.query.get(item["id"])
-        if q and q.panel_id == panel_id:
+        q = SensoryQuestion.query.get(item["id"])
+        if q:
             q.order_index = item["order_index"]
     db.session.commit()
     return jsonify({"status": "ok"})
@@ -166,23 +168,26 @@ def reorder_questions(panel_id):
 
 # ── Results ───────────────────────────────────────────────────────────────────
 
-@sensory_bp.route("/sensory_panels/<int:panel_id>/results", methods=["POST"])
-def submit_results(panel_id):
-    """Submit a batch of responses from one panelist for one sample."""
-    SensoryPanel.query.get_or_404(panel_id)
-    data = request.get_json()  # {panelist_id, sample_number (optional), responses: [{question_id, response, demographic_key}]}
-
+@sensory_bp.route("/sensory_results", methods=["POST"])
+def submit_results():
+    """Submit a batch of responses. Snapshots question data for permanence."""
+    from datetime import date as _date
+    data = request.get_json()
     panelist_id = str(data["panelist_id"])
     sample_number = data.get("sample_number")
+    session_label = data.get("session_label")
+    session_date_raw = data.get("session_date")
+    session_date = _date.fromisoformat(session_date_raw) if session_date_raw else None
 
     for r in data.get("responses", []):
-        q = SensoryPanelQuestion.query.get(r["question_id"])
-        db.session.add(SensoryPanelResult(
-            panel_id=panel_id,
+        q = SensoryQuestion.query.get(r.get("question_id")) if r.get("question_id") else None
+        db.session.add(SensoryResult(
+            session_label=session_label,
+            session_date=session_date,
             panelist_id=panelist_id,
             sample_number=sample_number,
-            question_id=r["question_id"],
-            question_type=q.question_type if q else None,
+            question_id=r.get("question_id"),
+            question_type=q.question_type if q else r.get("question_type"),
             attribute=q.attribute if q else r.get("attribute"),
             wording=q.wording if q else r.get("wording"),
             demographic_key=r.get("demographic_key") or (q.demographic_key if q else None),
@@ -192,16 +197,15 @@ def submit_results(panel_id):
     return jsonify({"status": "ok"})
 
 
-@sensory_bp.route("/sensory_panels/<int:panel_id>/results", methods=["GET"])
-def get_results(panel_id):
-    SensoryPanel.query.get_or_404(panel_id)
-    results = SensoryPanelResult.query.filter_by(panel_id=panel_id).order_by(
-        SensoryPanelResult.panelist_id, SensoryPanelResult.sample_number
+@sensory_bp.route("/sensory_results", methods=["GET"])
+def get_results():
+    results = SensoryResult.query.order_by(
+        SensoryResult.session_date.desc(),
+        SensoryResult.panelist_id,
+        SensoryResult.sample_number,
     ).all()
     return jsonify([r.to_dict() for r in results])
 
-
-# ── Demographic question catalogue ────────────────────────────────────────────
 
 @sensory_bp.route("/sensory_demographic_questions", methods=["GET"])
 def demographic_questions():

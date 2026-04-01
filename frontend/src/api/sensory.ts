@@ -2,26 +2,8 @@ import client from './client'
 
 export type QuestionType = 'rating_9' | 'slider_100' | 'text' | 'multiple_choice' | 'instruction' | 'demographic'
 
-export interface SensoryPanel {
+export interface SensoryQuestion {
   id: number
-  name: string
-  panel_date: string | null
-  samples_per_panelist: number
-  created_at: string
-  samples: SensoryPanelSample[]
-  questions: SensoryPanelQuestion[]
-}
-
-export interface SensoryPanelSample {
-  id: number
-  panel_id: number
-  sample_number: string
-  true_identifier: string | null
-}
-
-export interface SensoryPanelQuestion {
-  id: number
-  panel_id: number
   order_index: number
   question_type: QuestionType
   attribute: string | null
@@ -32,42 +14,51 @@ export interface SensoryPanelQuestion {
   enabled: boolean
 }
 
-export interface DemographicQuestionDef {
-  key: string
-  wording: string
-  type: string
-  options: string[]
+export interface SensoryResult {
+  id: number
+  session_label: string | null
+  session_date: string | null
+  panelist_id: string
+  sample_number: string | null
+  question_id: number | null
+  question_type: string | null
+  attribute: string | null
+  wording: string | null
+  demographic_key: string | null
+  response: string | null
+  recorded_at: string
 }
 
-export const listPanels = () =>
-  client.get('/sensory_panels').then<SensoryPanel[]>((r) => r.data)
+export interface SensorySample {
+  id: number
+  order_index: number
+  sample_number: string
+  real_identifier: string | null
+}
 
-export const createPanel = (data: { name: string; panel_date?: string | null; samples_per_panelist: number }) =>
-  client.post('/sensory_panels', data).then<SensoryPanel>((r) => r.data)
+export interface SensorySetup {
+  id: number
+  samples_per_panelist: number
+  samples: SensorySample[]
+}
 
-export const getPanel = (id: number) =>
-  client.get(`/sensory_panels/${id}`).then<SensoryPanel>((r) => r.data)
+export const listQuestions = () =>
+  client.get('/sensory_questions').then<SensoryQuestion[]>((r) => r.data)
 
-export const updatePanel = (id: number, data: Partial<Pick<SensoryPanel, 'name' | 'panel_date' | 'samples_per_panelist'>>) =>
-  client.put(`/sensory_panels/${id}`, data).then<SensoryPanel>((r) => r.data)
+export const getSensorySetup = () =>
+  client.get('/sensory_setup').then<SensorySetup>((r) => r.data)
 
-export const deletePanel = (id: number) =>
-  client.delete(`/sensory_panels/${id}`).then((r) => r.data)
+export const updateSensorySetup = (data: Partial<SensorySetup>) =>
+  client.put('/sensory_setup', data).then<SensorySetup>((r) => r.data)
 
-export const replaceSamples = (panelId: number, samples: { sample_number: string; true_identifier?: string }[]) =>
-  client.put(`/sensory_panels/${panelId}/samples`, samples).then((r) => r.data)
+export const addQuestion = (data: Partial<SensoryQuestion>) =>
+  client.post('/sensory_questions', data).then<SensoryQuestion>((r) => r.data)
 
-export const addQuestion = (panelId: number, data: Partial<SensoryPanelQuestion>) =>
-  client.post(`/sensory_panels/${panelId}/questions`, data).then<SensoryPanelQuestion>((r) => r.data)
+export const updateQuestion = (id: number, data: Partial<SensoryQuestion>) =>
+  client.put(`/sensory_questions/${id}`, data).then<SensoryQuestion>((r) => r.data)
 
-export const updateQuestion = (questionId: number, data: Partial<SensoryPanelQuestion>) =>
-  client.put(`/sensory_panels/questions/${questionId}`, data).then<SensoryPanelQuestion>((r) => r.data)
+export const deleteQuestion = (id: number) =>
+  client.delete(`/sensory_questions/${id}`).then((r) => r.data)
 
-export const deleteQuestion = (questionId: number) =>
-  client.delete(`/sensory_panels/questions/${questionId}`).then((r) => r.data)
-
-export const reorderQuestions = (panelId: number, order: { id: number; order_index: number }[]) =>
-  client.put(`/sensory_panels/${panelId}/questions/reorder`, order).then((r) => r.data)
-
-export const getDemographicQuestions = () =>
-  client.get('/sensory_demographic_questions').then<DemographicQuestionDef[]>((r) => r.data)
+export const reorderQuestions = (order: { id: number; order_index: number }[]) =>
+  client.put('/sensory_questions/reorder', order).then((r) => r.data)

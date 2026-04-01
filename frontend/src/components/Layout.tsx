@@ -29,7 +29,7 @@ const navItems = [
   { label: 'FQ Lab', path: '/fq-lab', icon: IconFlask },
   { label: 'FQ Database', path: '/fq-database', icon: IconDatabase },
   { label: 'Search Pedigree', path: '/search-pedigree', icon: IconSearch },
-  { label: 'Sensory Panels', path: '/sensory-panels', icon: IconMicroscope },
+  { label: 'Sensory Questions', path: '/sensory-panels', icon: IconMicroscope },
   { label: 'Configure', path: '/configure', icon: IconSettings },
 ]
 
