@@ -10,6 +10,7 @@ import App from './App'
 
 import '@mantine/core/styles.css'
 import '@mantine/notifications/styles.css'
+import '@mantine/dates/styles.css'
 
 const theme = createTheme({
   primaryColor: 'indigo',

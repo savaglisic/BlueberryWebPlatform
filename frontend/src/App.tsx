@@ -6,6 +6,7 @@ import { FQLab } from './pages/FQLab'
 import { FQDatabase } from './pages/FQDatabase'
 import { SearchPedigree } from './pages/SearchPedigree'
 import { Configure } from './pages/Configure'
+import { SensoryPanels } from './pages/SensoryPanels'
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
               <Route path="/fq-lab" element={<FQLab />} />
               <Route path="/fq-database" element={<FQDatabase />} />
               <Route path="/search-pedigree" element={<SearchPedigree />} />
+              <Route path="/sensory-panels" element={<SensoryPanels />} />
               <Route path="/configure" element={<Configure />} />
               <Route path="*" element={<Navigate to="/add-samples" replace />} />
             </Routes>
