@@ -4,6 +4,7 @@ database_exports/
 # Old defunct code — kept for reference only
 BlueWeb-main/
 BlueWebBackend-main/
+deepflavor-main-old/
 
 # Frontend
 frontend/node_modules/
