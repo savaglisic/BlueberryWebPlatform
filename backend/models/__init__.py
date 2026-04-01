@@ -1,6 +1,6 @@
 from .user import User, EmailWhitelist
 from .plant import PlantData, Genotype
-from .analytics import Rank, Yield, Score, FQ
+from .analytics import HistoricalRank, HistoricalYield, HistoricalScore, HistoricalFruitQuality
 from .config import OptionConfig, APIKey
 
 __all__ = [
@@ -8,10 +8,10 @@ __all__ = [
     "EmailWhitelist",
     "PlantData",
     "Genotype",
-    "Rank",
-    "Yield",
-    "Score",
-    "FQ",
+    "HistoricalRank",
+    "HistoricalYield",
+    "HistoricalScore",
+    "HistoricalFruitQuality",
     "OptionConfig",
     "APIKey",
 ]

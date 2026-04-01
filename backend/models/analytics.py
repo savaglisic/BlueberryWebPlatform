@@ -1,8 +1,8 @@
 from extensions import db
 
 
-class Rank(db.Model):
-    __tablename__ = "ranks"
+class HistoricalRank(db.Model):
+    __tablename__ = "historical_ranks"
 
     id = db.Column(db.Integer, primary_key=True)
     genotype = db.Column(db.String(50), nullable=False)
@@ -29,8 +29,8 @@ class Rank(db.Model):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 
-class Yield(db.Model):
-    __tablename__ = "yield"
+class HistoricalYield(db.Model):
+    __tablename__ = "historical_yield"
 
     id = db.Column(db.Integer, primary_key=True)
     genotype = db.Column(db.String(50), nullable=False)
@@ -42,8 +42,8 @@ class Yield(db.Model):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 
-class Score(db.Model):
-    __tablename__ = "scores"
+class HistoricalScore(db.Model):
+    __tablename__ = "historical_scores"
 
     id = db.Column(db.Integer, primary_key=True)
     genotype = db.Column(db.String(50), nullable=False)
@@ -55,8 +55,8 @@ class Score(db.Model):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 
-class FQ(db.Model):
-    __tablename__ = "fruit_quality"
+class HistoricalFruitQuality(db.Model):
+    __tablename__ = "historical_fruit_quality"
 
     id = db.Column(db.Integer, primary_key=True)
     genotype = db.Column(db.String(50), nullable=False)

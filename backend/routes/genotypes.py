@@ -1,8 +1,7 @@
 import difflib
 from flask import Blueprint, request, jsonify
-from sqlalchemy import or_
 from extensions import db
-from models import Rank, Yield, Score, FQ, Genotype
+from models import HistoricalRank, HistoricalYield, HistoricalScore, HistoricalFruitQuality, Genotype
 
 genotypes_bp = Blueprint("genotypes", __name__)
 
@@ -13,10 +12,10 @@ def search_genotype():
     pattern = f"%{query}%"
 
     results = {
-        "ranks": [r.to_dict() for r in Rank.query.filter(Rank.genotype.ilike(pattern)).all()],
-        "yields": [r.to_dict() for r in Yield.query.filter(Yield.genotype.ilike(pattern)).all()],
-        "scores": [r.to_dict() for r in Score.query.filter(Score.genotype.ilike(pattern)).all()],
-        "fruit_quality": [r.to_dict() for r in FQ.query.filter(FQ.genotype.ilike(pattern)).all()],
+        "ranks": [r.to_dict() for r in HistoricalRank.query.filter(HistoricalRank.genotype.ilike(pattern)).all()],
+        "yields": [r.to_dict() for r in HistoricalYield.query.filter(HistoricalYield.genotype.ilike(pattern)).all()],
+        "scores": [r.to_dict() for r in HistoricalScore.query.filter(HistoricalScore.genotype.ilike(pattern)).all()],
+        "fruit_quality": [r.to_dict() for r in HistoricalFruitQuality.query.filter(HistoricalFruitQuality.genotype.ilike(pattern)).all()],
     }
     return jsonify(results)
 
@@ -24,10 +23,10 @@ def search_genotype():
 @genotypes_bp.route("/populate_genotypes", methods=["POST"])
 def populate_genotypes():
     sources = [
-        db.session.query(Rank.genotype).distinct(),
-        db.session.query(Yield.genotype).distinct(),
-        db.session.query(Score.genotype).distinct(),
-        db.session.query(FQ.genotype).distinct(),
+        db.session.query(HistoricalRank.genotype).distinct(),
+        db.session.query(HistoricalYield.genotype).distinct(),
+        db.session.query(HistoricalScore.genotype).distinct(),
+        db.session.query(HistoricalFruitQuality.genotype).distinct(),
     ]
 
     all_genotypes = set()
