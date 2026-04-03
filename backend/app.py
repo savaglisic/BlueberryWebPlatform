@@ -2,7 +2,7 @@ import os
 from flask import Flask
 from config import config
 from extensions import db, cors
-from routes import auth_bp, whitelist_bp, plant_data_bp, genotypes_bp, analytics_bp, options_bp, sensory_bp
+from routes import auth_bp, whitelist_bp, plant_data_bp, genotypes_bp, analytics_bp, options_bp, sensory_bp, deepflavor_bp
 
 
 def create_app(env: str | None = None) -> Flask:
@@ -14,7 +14,7 @@ def create_app(env: str | None = None) -> Flask:
     db.init_app(app)
     cors.init_app(app, resources={r"/api/*": {"origins": app.config["CORS_ORIGINS"]}})
 
-    blueprints = [auth_bp, whitelist_bp, plant_data_bp, genotypes_bp, analytics_bp, options_bp, sensory_bp]
+    blueprints = [auth_bp, whitelist_bp, plant_data_bp, genotypes_bp, analytics_bp, options_bp, sensory_bp, deepflavor_bp]
     for bp in blueprints:
         app.register_blueprint(bp, url_prefix="/api")
 

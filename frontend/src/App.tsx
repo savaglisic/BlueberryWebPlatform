@@ -7,6 +7,7 @@ import { FQDatabase } from './pages/FQDatabase'
 import { SearchPedigree } from './pages/SearchPedigree'
 import { Configure } from './pages/Configure'
 import { SensoryPanels } from './pages/SensoryPanels'
+import { DeepFlavor } from './pages/DeepFlavor'
 
 export default function App() {
   return (
@@ -14,6 +15,10 @@ export default function App() {
       <Route
         path="/fq-lab-public"
         element={<LayoutPublic><FQLab /></LayoutPublic>}
+      />
+      <Route
+        path="/deepflavor"
+        element={<LayoutPublic><DeepFlavor /></LayoutPublic>}
       />
       <Route
         path="*"

@@ -5,6 +5,7 @@ from .genotypes import genotypes_bp
 from .analytics import analytics_bp
 from .options import options_bp
 from .sensory import sensory_bp
+from .deepflavor import deepflavor_bp
 
 __all__ = [
     "auth_bp",
@@ -14,4 +15,5 @@ __all__ = [
     "analytics_bp",
     "options_bp",
     "sensory_bp",
+    "deepflavor_bp",
 ]
