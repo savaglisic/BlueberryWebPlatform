@@ -1,28 +1,80 @@
-import { useEffect, useState } from 'react'
-import { Text, Title, Stack, Loader } from '@mantine/core'
+import { useEffect, useRef, useState } from 'react'
+import { Title, Stack, Box, ThemeIcon, Text } from '@mantine/core'
+import { IconCheck, IconCameraOff } from '@tabler/icons-react'
 
 export function DeepFlavor() {
-  const [message, setMessage] = useState<string | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/deepflavor')
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.json()
+    let stream: MediaStream
+    navigator.mediaDevices
+      .getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+      .then((s) => {
+        stream = s
+        if (videoRef.current) {
+          videoRef.current.srcObject = s
+        }
       })
-      .then((data) => setMessage(data.message))
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false))
+      .catch((e) => setError(e.message))
+
+    return () => {
+      stream?.getTracks().forEach((t) => t.stop())
+    }
   }, [])
 
   return (
-    <Stack p="md">
+    <Stack p="md" align="center">
       <Title order={2}>DeepFlavor</Title>
-      {loading && <Loader size="sm" />}
-      {error && <Text c="red">{error}</Text>}
-      {message && <Text>{message}</Text>}
+
+      <Box pos="relative" style={{ width: '100%', maxWidth: 720 }}>
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          onCanPlay={() => setReady(true)}
+          style={{
+            width: '100%',
+            aspectRatio: '16/9',
+            borderRadius: 'var(--mantine-radius-md)',
+            background: '#000',
+            display: 'block',
+          }}
+        />
+
+        {ready && (
+          <ThemeIcon
+            color="green"
+            variant="filled"
+            radius="xl"
+            size="lg"
+            pos="absolute"
+            style={{ bottom: 12, right: 12 }}
+          >
+            <IconCheck size={18} />
+          </ThemeIcon>
+        )}
+
+        {error && (
+          <Stack
+            align="center"
+            justify="center"
+            pos="absolute"
+            style={{ inset: 0, borderRadius: 'var(--mantine-radius-md)', background: 'rgba(0,0,0,0.7)' }}
+          >
+            <IconCameraOff size={40} color="white" />
+            <Text c="white" size="sm">{error}</Text>
+          </Stack>
+        )}
+      </Box>
+
+      {ready && (
+        <Text c="green" fw={500}>
+          Camera test successful, ready for panels.
+        </Text>
+      )}
     </Stack>
   )
 }
