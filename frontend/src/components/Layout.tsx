@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
+import darkLogo from '../assets/whitetextnobg_logo.webp'
+import lightLogo from '../assets/blacktextnobg_logo.webp'
+import berryLogo from '../assets/berrylogo.webp'
 import {
   AppShell,
   Burger,
@@ -52,13 +55,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <Group gap="xs">
             <Burger opened={mobileOpened} onClick={() => setMobileOpened((o) => !o)} hiddenFrom="sm" size="sm" />
             <Image
-              src={isDark ? '/whitetextnobg_logo.webp' : '/blacktextnobg_logo.webp'}
+              src={isDark ? darkLogo : lightLogo}
               alt="BlueWeb"
               h={46}
               w="auto"
               fit="contain"
             />
-            <Image src="/berrylogo.webp" alt="" h={46} w="auto" fit="contain" />
+            <Image src={berryLogo} alt="" h={46} w="auto" fit="contain" />
           </Group>
           <ActionIcon variant="subtle" onClick={toggleColorScheme} size="lg" color="gray">
             {isDark ? <IconSun size={18} /> : <IconMoon size={18} />}
