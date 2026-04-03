@@ -1,0 +1,49 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'deploy'
+        type: choice
+        options:
+          - deploy
+          - restart
+          - stop
+
+jobs:
+  deploy:
+    name: Deploy App
+    if: github.event.inputs.action == 'deploy'
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Pull latest images and start services
+        run: |
+          docker compose pull --ignore-buildable
+          docker compose up --build -d
+
+  restart:
+    name: Restart App
+    if: github.event.inputs.action == 'restart'
+    runs-on: self-hosted
+    steps:
+      - name: Restart services
+        working-directory: ${{ github.workspace }}
+        run: docker compose restart
+
+  stop:
+    name: Stop App
+    if: github.event.inputs.action == 'stop'
+    runs-on: self-hosted
+    steps:
+      - name: Stop services
+        working-directory: ${{ github.workspace }}
+        run: docker compose down
