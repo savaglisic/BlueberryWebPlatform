@@ -19,7 +19,7 @@ on:
 jobs:
   deploy:
     name: Deploy App
-    if: github.event.inputs.action == 'deploy'
+    if: github.event_name == 'push' || github.event.inputs.action == 'deploy'
     runs-on: self-hosted
     steps:
       - name: Checkout
