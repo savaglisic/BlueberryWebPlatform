@@ -54,7 +54,7 @@ export function AddSamples() {
     // Only accept digits, truncate to 7
     const digits = scanned.replace(/\D/g, '').slice(0, 7)
     if (!digits) return
-    setForm((f) => ({ ...EMPTY_FORM, barcode: digits }))
+    setForm((_f) => ({ ...EMPTY_FORM, barcode: digits }))
     setBarcodeExistsWarning(false)
     setGenotypeSuggestion('')
     prevBarcodeRef.current = ''
@@ -72,7 +72,7 @@ export function AddSamples() {
 
     // If barcode changed after previously being 7 digits, reset form
     if (prev.length === 7 && cur !== prev) {
-      setForm((f) => ({ ...EMPTY_FORM, barcode: cur }))
+      setForm((_f) => ({ ...EMPTY_FORM, barcode: cur }))
       setBarcodeExistsWarning(false)
       setGenotypeSuggestion('')
     }

@@ -384,7 +384,7 @@ export function SensoryPanels() {
     || savedSamplesSignature !== draftSamplesSignature
   )
 
-  const saveSetup = async (next: { samples_per_panelist: number; samples: Array<Partial<SensorySample>> }) => {
+  const saveSetup = async (next: { samples_per_panelist: number; samples: SensorySample[] }) => {
     setIsSavingSetup(true)
     try {
       await updateSensorySetup(next)
@@ -480,7 +480,7 @@ export function SensoryPanels() {
   const handleSaveSetup = async () => {
     await saveSetup({
       samples_per_panelist: draftSampleCount,
-      samples: draftSamples,
+      samples: draftSamples as SensorySample[],
     })
   }
 

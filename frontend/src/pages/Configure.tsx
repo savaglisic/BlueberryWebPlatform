@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import {
   Title, Stack, Group, Button, TextInput, Paper, Text, ActionIcon,
-  Tabs, Badge, Divider, Select,
+  Tabs, Divider, Select,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { modals } from '@mantine/modals'
 import { IconTrash, IconPlus } from '@tabler/icons-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getWhitelist, addToWhitelist, removeFromWhitelist } from '../api/whitelist'
-import { getOptions, addOption, deleteOption, updateOption } from '../api/options'
+import { getOptions, addOption, deleteOption } from '../api/options'
 
 const OPTION_TYPES = ['stage', 'site', 'block', 'project', 'post_harvest', 'ph_range', 'brix_range', 'tta_range']
 
