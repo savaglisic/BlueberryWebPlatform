@@ -179,19 +179,30 @@ def submit_results():
     session_date_raw = data.get("session_date")
     session_date = _date.fromisoformat(session_date_raw) if session_date_raw else None
 
+    NUMERIC_QUESTION_TYPES = {"rating_9", "slider_100"}
+
     for r in data.get("responses", []):
         q = SensoryQuestion.query.get(r.get("question_id")) if r.get("question_id") else None
+        q_type = q.question_type if q else r.get("question_type")
+        raw_response = r.get("response")
+        numeric_response = None
+        if q_type in NUMERIC_QUESTION_TYPES and raw_response is not None:
+            try:
+                numeric_response = float(raw_response)
+            except (TypeError, ValueError):
+                pass
         db.session.add(SensoryResult(
             session_label=session_label,
             session_date=session_date,
             panelist_id=panelist_id,
             sample_number=sample_number,
             question_id=r.get("question_id"),
-            question_type=q.question_type if q else r.get("question_type"),
+            question_type=q_type,
             attribute=q.attribute if q else r.get("attribute"),
             wording=q.wording if q else r.get("wording"),
             demographic_key=r.get("demographic_key") or (q.demographic_key if q else None),
-            response=str(r["response"]) if r.get("response") is not None else None,
+            response=str(raw_response) if raw_response is not None else None,
+            numeric_response=numeric_response,
         ))
     db.session.commit()
     return jsonify({"status": "ok"})

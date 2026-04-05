@@ -154,6 +154,7 @@ class SensoryResult(db.Model):
     wording = db.Column(db.Text)
     demographic_key = db.Column(db.String(50))
     response = db.Column(db.Text)
+    numeric_response = db.Column(db.Float)
     recorded_at = db.Column(db.DateTime, server_default=db.func.now())
 
     def to_dict(self):
@@ -169,5 +170,6 @@ class SensoryResult(db.Model):
             "wording": self.wording,
             "demographic_key": self.demographic_key,
             "response": self.response,
+            "numeric_response": self.numeric_response,
             "recorded_at": self.recorded_at.isoformat() if self.recorded_at else None,
         }
