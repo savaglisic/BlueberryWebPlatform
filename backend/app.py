@@ -1,7 +1,7 @@
 import os
 from flask import Flask
 from config import config
-from extensions import db, cors
+from extensions import db, cors, migrate
 from routes import auth_bp, whitelist_bp, plant_data_bp, genotypes_bp, analytics_bp, options_bp, sensory_bp, deepflavor_bp
 
 
@@ -12,6 +12,7 @@ def create_app(env: str | None = None) -> Flask:
     app.config.from_object(config[env])
 
     db.init_app(app)
+    migrate.init_app(app, db)
     cors.init_app(app, resources={r"/api/*": {"origins": app.config["CORS_ORIGINS"]}})
 
     blueprints = [auth_bp, whitelist_bp, plant_data_bp, genotypes_bp, analytics_bp, options_bp, sensory_bp, deepflavor_bp]

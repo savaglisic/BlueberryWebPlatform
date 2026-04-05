@@ -30,6 +30,11 @@ jobs:
           docker compose pull --ignore-buildable
           docker compose up --build -d
 
+      - name: Run database migrations
+        run: |
+          # Wait for the backend container to be healthy, then apply any pending migrations.
+          docker compose exec -T backend flask db upgrade
+
   restart:
     name: Restart App
     if: github.event.inputs.action == 'restart'
