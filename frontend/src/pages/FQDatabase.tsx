@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Title, Stack, Group, Button, SegmentedControl, TextInput, Table,
   Pagination, Modal, Select, NumberInput, Text, ActionIcon, Badge,
@@ -229,9 +230,17 @@ function ColumnPicker({ visible, onChange }: { visible: Set<keyof PlantRecord>; 
 
 export function FQDatabase() {
   const currentYearPrefix = new Date().getFullYear().toString().slice(-2)
+  const location = useLocation()
+  const navigate = useNavigate()
 
-  const [view, setView] = useState<'table' | 'yield'>('table')
+  const isYieldRoute = location.pathname === '/fq-database/yield-summary'
+  const [view, setView] = useState<'table' | 'yield'>(isYieldRoute ? 'yield' : 'table')
   const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    setView(isYieldRoute ? 'yield' : 'table')
+    setPage(1)
+  }, [isYieldRoute])
   const [filters, setFilters] = useState<Filter[]>([])
   const [activeFilters, setActiveFilters] = useState<Filter[]>([])
   const [currentYearOnly, setCurrentYearOnly] = useState(true)
@@ -320,7 +329,7 @@ export function FQDatabase() {
           {view === 'table' && <ColumnPicker visible={visibleCols} onChange={setVisibleCols} />}
           <SegmentedControl
             value={view}
-            onChange={(v) => { setView(v as any); setPage(1) }}
+            onChange={(v) => { navigate(v === 'yield' ? '/fq-database/yield-summary' : '/fq-database'); setPage(1) }}
             data={[{ label: 'Records', value: 'table' }, { label: 'Yield Summary', value: 'yield' }]}
             size="sm"
           />
@@ -399,7 +408,7 @@ export function FQDatabase() {
             <Table striped highlightOnHover withTableBorder stickyHeader>
               <Table.Thead>
                 <Table.Tr>
-                  {yieldData.data?.[0] && Object.keys(yieldData.data[0]).map((col: string) => (
+                  {(yieldData.columns ?? []).map((col: string) => (
                     <Table.Th key={col} style={{ whiteSpace: 'nowrap' }}>{col}</Table.Th>
                   ))}
                 </Table.Tr>
@@ -407,9 +416,14 @@ export function FQDatabase() {
               <Table.Tbody>
                 {yieldData.data?.map((row: Record<string, unknown>, i: number) => (
                   <Table.Tr key={i}>
-                    {Object.values(row).map((val, j) => (
-                      <Table.Td key={j} fz="xs">{typeof val === 'number' ? val.toFixed(2) : String(val ?? '—')}</Table.Td>
-                    ))}
+                    {(yieldData.columns ?? []).map((col: string) => {
+                      const val = row[col]
+                      return (
+                        <Table.Td key={col} fz="xs">
+                          {typeof val === 'number' ? val.toFixed(2) : String(val ?? '—')}
+                        </Table.Td>
+                      )
+                    })}
                   </Table.Tr>
                 ))}
               </Table.Tbody>

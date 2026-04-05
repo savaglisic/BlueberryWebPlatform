@@ -30,6 +30,7 @@ export default function App() {
               <Route path="/add-samples" element={<AddSamples />} />
               <Route path="/fq-lab" element={<FQLab />} />
               <Route path="/fq-database" element={<FQDatabase />} />
+              <Route path="/fq-database/yield-summary" element={<FQDatabase />} />
               <Route path="/search-pedigree" element={<SearchPedigree />} />
               <Route path="/sensory-panels" element={<SensoryPanels />} />
               <Route path="/configure" element={<Configure />} />
