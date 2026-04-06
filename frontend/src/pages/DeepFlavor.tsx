@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import aiLogo from '../assets/ailogo.png'
 import {
   Stack,
@@ -34,6 +34,7 @@ type Screen =
   | 'welcome'
   | 'identify'
   | 'loading'
+  | 'webcam_check'
   | 'demographics'
   | 'sample_select'
   | 'sample_confirm'
@@ -319,6 +320,38 @@ export function DeepFlavor() {
 
   const [submitting, setSubmitting] = useState(false)
 
+  // Webcam check state
+  const webcamNextScreen = useRef<'demographics' | 'sample_select'>('sample_select')
+  const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null)
+  const [webcamUnavailable, setWebcamUnavailable] = useState(false)
+  const webcamVideoRef = useRef<HTMLVideoElement | null>(null)
+
+  useEffect(() => {
+    if (screen !== 'webcam_check') {
+      if (webcamStream) {
+        webcamStream.getTracks().forEach((t) => t.stop())
+        setWebcamStream(null)
+      }
+      return
+    }
+    setWebcamUnavailable(false)
+    navigator.mediaDevices
+      .getUserMedia({ video: true })
+      .then((stream) => {
+        setWebcamStream(stream)
+        setWebcamUnavailable(false)
+      })
+      .catch(() => {
+        setWebcamUnavailable(true)
+      })
+  }, [screen]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (webcamVideoRef.current && webcamStream) {
+      webcamVideoRef.current.srcObject = webcamStream
+    }
+  }, [webcamStream])
+
   // ── Handlers ──
 
   const handleEndSession = () => {
@@ -352,10 +385,11 @@ export function DeepFlavor() {
       if (!data.panelist.demographics_complete && data.demographic_questions.length > 0) {
         setDemoIndex(0)
         setDemoResponses({})
-        setScreen('demographics')
+        webcamNextScreen.current = 'demographics'
       } else {
-        setScreen('sample_select')
+        webcamNextScreen.current = 'sample_select'
       }
+      setScreen('webcam_check')
     } catch (e: any) {
       setLoadError(e?.response?.data?.error || 'Failed to load session. Please try again.')
       setScreen('welcome')
@@ -511,6 +545,62 @@ export function DeepFlavor() {
         <Text size="lg" c="dimmed">
           Loading your session…
         </Text>
+      </ScreenWrap>
+    )
+  }
+
+  if (screen === 'webcam_check') {
+    return (
+      <ScreenWrap onEnd={handleEndSession}>
+        <Stack gap="lg" align="center" style={{ width: '100%', maxWidth: 640 }}>
+          <Stack gap="xs" align="center">
+            <Title order={2} ta="center">
+              Camera Check
+            </Title>
+            <Text size="lg" c="dimmed" ta="center">
+              {webcamUnavailable
+                ? 'No camera detected — that\'s okay, you can continue without one.'
+                : 'Please confirm your face is visible in the viewfinder below.'}
+            </Text>
+          </Stack>
+
+          {!webcamUnavailable && (
+            <Box
+              style={{
+                width: '100%',
+                aspectRatio: '4/3',
+                borderRadius: 16,
+                overflow: 'hidden',
+                background: '#111',
+                position: 'relative',
+                boxShadow: '0 8px 40px rgba(0,0,0,0.35)',
+              }}
+            >
+              {webcamStream ? (
+                <video
+                  ref={webcamVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
+                />
+              ) : (
+                <Center style={{ height: '100%' }}>
+                  <Loader size="lg" color="gray" />
+                </Center>
+              )}
+            </Box>
+          )}
+
+          <Button
+            size="xl"
+            style={{ minWidth: 'min(280px, 80vw)', fontSize: 'clamp(1.1rem, 3vw, 1.4rem)' }}
+            rightSection={<IconArrowRight size={22} />}
+            onClick={() => setScreen(webcamNextScreen.current)}
+          >
+            {webcamUnavailable ? 'Continue Anyway' : 'Looks Good — Continue'}
+          </Button>
+        </Stack>
       </ScreenWrap>
     )
   }
