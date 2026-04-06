@@ -207,12 +207,50 @@ def submit_results():
 
 @sensory_bp.route("/sensory_results", methods=["GET"])
 def get_results():
-    results = SensoryResult.query.order_by(
-        SensoryResult.session_date.desc(),
-        SensoryResult.panelist_id,
-        SensoryResult.sample_number,
-    ).all()
-    return jsonify([r.to_dict() for r in results])
+    from sqlalchemy import tuple_
+    date_filter = request.args.get("date")
+    page = max(1, int(request.args.get("page", 1)))
+    per_page = min(200, max(1, int(request.args.get("per_page", 50))))
+
+    base = SensoryResult.query
+    if date_filter:
+        base = base.filter(SensoryResult.session_date == date_filter)
+
+    # Paginate by distinct (panelist_id, sample_number) pairs
+    pairs_q = (
+        base.with_entities(SensoryResult.panelist_id, SensoryResult.sample_number)
+        .distinct()
+        .order_by(SensoryResult.panelist_id, SensoryResult.sample_number)
+    )
+    total_pairs = pairs_q.count()
+    pairs = pairs_q.offset((page - 1) * per_page).limit(per_page).all()
+
+    if not pairs:
+        return jsonify({"results": [], "total": total_pairs, "page": page, "per_page": per_page})
+
+    results = (
+        base.filter(tuple_(SensoryResult.panelist_id, SensoryResult.sample_number).in_(pairs))
+        .order_by(SensoryResult.panelist_id, SensoryResult.sample_number)
+        .all()
+    )
+    return jsonify({
+        "results": [r.to_dict() for r in results],
+        "total": total_pairs,
+        "page": page,
+        "per_page": per_page,
+    })
+
+
+@sensory_bp.route("/sensory_result_dates", methods=["GET"])
+def get_result_dates():
+    from sqlalchemy import distinct, func
+    dates = (
+        db.session.query(distinct(SensoryResult.session_date))
+        .filter(SensoryResult.session_date.isnot(None))
+        .order_by(SensoryResult.session_date.desc())
+        .all()
+    )
+    return jsonify([row[0] for row in dates])
 
 
 @sensory_bp.route("/sensory_demographic_questions", methods=["GET"])

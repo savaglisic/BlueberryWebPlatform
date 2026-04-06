@@ -60,3 +60,18 @@ export const deleteQuestion = (id: number) =>
 
 export const reorderQuestions = (order: { id: number; order_index: number }[]) =>
   client.put('/sensory_questions/reorder', order).then((r) => r.data)
+
+export interface SensoryResultsPage {
+  results: SensoryResult[]
+  total: number
+  page: number
+  per_page: number
+}
+
+export const getSensoryResultDates = () =>
+  client.get('/sensory_result_dates').then<string[]>((r) => r.data)
+
+export const getSensoryResults = (date: string, page: number, perPage = 50) =>
+  client
+    .get('/sensory_results', { params: { date, page, per_page: perPage } })
+    .then<SensoryResultsPage>((r) => r.data)

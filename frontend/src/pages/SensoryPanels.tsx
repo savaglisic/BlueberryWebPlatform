@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Title, Stack, Group, Button, Paper, Text, TextInput, NumberInput,
   Modal, Select, Textarea, Switch, Badge, ActionIcon,
-  Table, Tooltip, ScrollArea, Loader, Center, ThemeIcon,
+  Table, Tooltip, ScrollArea, Loader, Center, ThemeIcon, Tabs, Pagination,
 } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
@@ -10,10 +10,10 @@ import { modals } from '@mantine/modals'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   IconPlus, IconTrash, IconEdit, IconArrowUp, IconArrowDown,
-  IconVideo, IconVideoOff, IconFlask,
+  IconVideo, IconVideoOff, IconFlask, IconTable, IconDownload,
 } from '@tabler/icons-react'
-import type { SensoryQuestion, QuestionType, SensorySample } from '../api/sensory'
-import { listQuestions, getSensorySetup, updateSensorySetup, addQuestion, updateQuestion, deleteQuestion, reorderQuestions } from '../api/sensory'
+import type { SensoryQuestion, QuestionType, SensorySample, SensoryResult } from '../api/sensory'
+import { listQuestions, getSensorySetup, updateSensorySetup, addQuestion, updateQuestion, deleteQuestion, reorderQuestions, getSensoryResultDates, getSensoryResults } from '../api/sensory'
 
 const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   rating_9: 'Rating 1–9 (Dislike → Like)',
@@ -500,7 +500,19 @@ export function SensoryPanels() {
 
   return (
     <Stack>
-      <Title order={3}>Sensory Questions</Title>
+      <Title order={3}>Sensory Panel</Title>
+
+      <Tabs defaultValue="questions">
+        <Tabs.List mb="md">
+          <Tabs.Tab value="questions" leftSection={<IconFlask size={14} />}>Questions</Tabs.Tab>
+          <Tabs.Tab value="results" leftSection={<IconTable size={14} />}>Results</Tabs.Tab>
+        </Tabs.List>
+
+        <Tabs.Panel value="results">
+          <ResultsTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="questions">
       <Text size="sm" c="dimmed">
         Define the live question set used right now. Results are stored separately and keep their own snapshot of each question, so you can change this list at any time without affecting past data.
       </Text>
@@ -720,6 +732,184 @@ export function SensoryPanels() {
           <QuestionFormModal existing={editQuestion} onClose={() => setEditQuestion(null)} />
         )}
       </Modal>
+
+        </Tabs.Panel>
+      </Tabs>
+    </Stack>
+  )
+}
+
+// ─── Results Tab ──────────────────────────────────────────────────────────────
+
+const PER_PAGE = 50
+
+function pivotResults(results: SensoryResult[]) {
+  const experimentalResults = results.filter((r) => r.question_type !== 'demographic' && r.sample_number)
+  const demographicResults = results.filter((r) => r.question_type === 'demographic')
+
+  const attributes = Array.from(new Set(experimentalResults.map((r) => r.attribute ?? r.wording ?? ''))).filter(Boolean)
+  const demoAttributes = Array.from(new Set(demographicResults.map((r) => r.attribute ?? r.wording ?? ''))).filter(Boolean)
+
+  const panelistDemoMap: Record<string, Record<string, string>> = {}
+  for (const r of demographicResults) {
+    const col = r.attribute ?? r.wording ?? ''
+    if (!panelistDemoMap[r.panelist_id]) panelistDemoMap[r.panelist_id] = {}
+    panelistDemoMap[r.panelist_id][col] = r.response ?? ''
+  }
+
+  const byPanelistSample: Record<string, { panelist_id: string; sample_number: string; cols: Record<string, string> }> = {}
+  for (const r of experimentalResults) {
+    const key = `${r.panelist_id}||${r.sample_number}`
+    if (!byPanelistSample[key]) byPanelistSample[key] = { panelist_id: r.panelist_id, sample_number: r.sample_number!, cols: {} }
+    byPanelistSample[key].cols[r.attribute ?? r.wording ?? ''] = r.response ?? ''
+  }
+
+  return {
+    rows: Object.values(byPanelistSample),
+    allCols: [...demoAttributes, ...attributes],
+    demoAttributes,
+    attributes,
+    panelistDemoMap,
+  }
+}
+
+function ResultsTab() {
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [downloading, setDownloading] = useState(false)
+
+  const { data: dates = [], isLoading: datesLoading } = useQuery({
+    queryKey: ['sensory-result-dates'],
+    queryFn: getSensoryResultDates,
+  })
+
+  const { data: pageData, isLoading: resultsLoading } = useQuery({
+    queryKey: ['sensory-results', selectedDate, page],
+    queryFn: () => getSensoryResults(selectedDate!, page, PER_PAGE),
+    enabled: !!selectedDate,
+    placeholderData: (prev) => prev,
+  })
+
+  useEffect(() => {
+    if (dates.length > 0 && !selectedDate) setSelectedDate(dates[0])
+  }, [dates, selectedDate])
+
+  // Reset to page 1 when date changes
+  useEffect(() => { setPage(1) }, [selectedDate])
+
+  const handleDownloadCsv = async () => {
+    if (!selectedDate) return
+    setDownloading(true)
+    try {
+      // Fetch all pages for the selected date
+      const first = await getSensoryResults(selectedDate, 1, 10000)
+      const allResults = first.results
+      const { rows, allCols, demoAttributes, attributes, panelistDemoMap } = pivotResults(allResults)
+      const headers = ['panelist_id', 'sample_number', ...demoAttributes, ...attributes]
+      const csvRows = rows.map((row) =>
+        headers.map((h) => {
+          if (h === 'panelist_id') return row.panelist_id
+          if (h === 'sample_number') return row.sample_number
+          const val = row.cols[h] ?? panelistDemoMap[row.panelist_id]?.[h] ?? ''
+          return val.includes(',') || val.includes('"') ? `"${val.replace(/"/g, '""')}"` : val
+        }).join(',')
+      )
+      const csv = [headers.join(','), ...csvRows].join('\n')
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `panel_results_${selectedDate}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      // Suppress allCols warning
+      void allCols
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  if (datesLoading) return <Center p="xl"><Loader /></Center>
+
+  if (dates.length === 0) {
+    return (
+      <Paper withBorder p="xl" radius="md">
+        <Center><Text c="dimmed">No panel results yet.</Text></Center>
+      </Paper>
+    )
+  }
+
+  const results = pageData?.results ?? []
+  const totalPairs = pageData?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalPairs / PER_PAGE))
+  const { rows, allCols, panelistDemoMap } = pivotResults(results)
+
+  return (
+    <Stack>
+      <Group justify="space-between" align="flex-end">
+        <Select
+          label="Panel date"
+          data={dates.map((d) => ({ value: d, label: d }))}
+          value={selectedDate}
+          onChange={setSelectedDate}
+          style={{ minWidth: 200 }}
+        />
+        <Button
+          leftSection={<IconDownload size={14} />}
+          variant="default"
+          disabled={!totalPairs}
+          loading={downloading}
+          onClick={handleDownloadCsv}
+        >
+          Download CSV
+        </Button>
+      </Group>
+
+      {resultsLoading && !pageData ? (
+        <Center p="xl"><Loader /></Center>
+      ) : rows.length === 0 ? (
+        <Paper withBorder p="xl" radius="md">
+          <Center><Text c="dimmed">No responses for this date.</Text></Center>
+        </Paper>
+      ) : (
+        <Stack gap="sm">
+          <Paper withBorder radius="md" style={{ overflow: 'hidden', opacity: resultsLoading ? 0.6 : 1, transition: 'opacity 0.15s' }}>
+            <ScrollArea>
+              <Table striped highlightOnHover withColumnBorders style={{ whiteSpace: 'nowrap' }}>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Panelist</Table.Th>
+                    <Table.Th>Sample</Table.Th>
+                    {allCols.map((col) => (
+                      <Table.Th key={col}>{col}</Table.Th>
+                    ))}
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {rows.map((row) => (
+                    <Table.Tr key={`${row.panelist_id}||${row.sample_number}`}>
+                      <Table.Td>{row.panelist_id}</Table.Td>
+                      <Table.Td>{row.sample_number}</Table.Td>
+                      {allCols.map((col) => (
+                        <Table.Td key={col}>
+                          {row.cols[col] ?? panelistDemoMap[row.panelist_id]?.[col] ?? '—'}
+                        </Table.Td>
+                      ))}
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </ScrollArea>
+          </Paper>
+
+          <Group justify="space-between" align="center">
+            <Text size="sm" c="dimmed">
+              {totalPairs} panelist–sample pairs · page {page} of {totalPages}
+            </Text>
+            <Pagination value={page} onChange={setPage} total={totalPages} size="sm" />
+          </Group>
+        </Stack>
+      )}
     </Stack>
   )
 }
