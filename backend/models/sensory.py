@@ -164,8 +164,6 @@ class SensoryResult(db.Model):
     __tablename__ = "sensory_results"
 
     id = db.Column(db.Integer, primary_key=True)
-    # Session metadata — free-form, not a FK
-    session_label = db.Column(db.String(200))   # e.g. "Spring 2026 Panel – Apr 1"
     session_date = db.Column(db.Date)
     panelist_id = db.Column(db.String(50), nullable=False)
     sample_number = db.Column(db.String(50))    # null for demographic responses
@@ -174,7 +172,6 @@ class SensoryResult(db.Model):
     question_type = db.Column(db.String(30))
     attribute = db.Column(db.String(200))
     wording = db.Column(db.Text)
-    demographic_key = db.Column(db.String(50))
     response = db.Column(db.Text)
     numeric_response = db.Column(db.Float)
     recorded_at = db.Column(db.DateTime, server_default=db.func.now())
@@ -182,7 +179,6 @@ class SensoryResult(db.Model):
     def to_dict(self):
         return {
             "id": self.id,
-            "session_label": self.session_label,
             "session_date": self.session_date.isoformat() if self.session_date else None,
             "panelist_id": self.panelist_id,
             "sample_number": self.sample_number,
@@ -190,7 +186,6 @@ class SensoryResult(db.Model):
             "question_type": self.question_type,
             "attribute": self.attribute,
             "wording": self.wording,
-            "demographic_key": self.demographic_key,
             "response": self.response,
             "numeric_response": self.numeric_response,
             "recorded_at": self.recorded_at.isoformat() if self.recorded_at else None,

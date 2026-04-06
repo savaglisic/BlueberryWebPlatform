@@ -16,7 +16,6 @@ export interface SensoryQuestion {
 
 export interface SensoryResult {
   id: number
-  session_label: string | null
   session_date: string | null
   panelist_id: string
   sample_number: string | null
@@ -24,7 +23,6 @@ export interface SensoryResult {
   question_type: string | null
   attribute: string | null
   wording: string | null
-  demographic_key: string | null
   response: string | null
   recorded_at: string
 }

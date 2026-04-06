@@ -132,9 +132,8 @@ def submit_demographics():
             sample_number=None,
             question_id=r.get("question_id"),
             question_type=q_type,
-            attribute=r.get("attribute"),
+            attribute=r.get("attribute") or r.get("demographic_key"),
             wording=r.get("wording"),
-            demographic_key=r.get("demographic_key"),
             response=str(raw_response) if raw_response is not None else None,
             numeric_response=numeric_response,
         ))
@@ -174,7 +173,6 @@ def submit_sample_response():
             question_type=q_type,
             attribute=r.get("attribute"),
             wording=r.get("wording"),
-            demographic_key=None,
             response=str(raw_response) if raw_response is not None else None,
             numeric_response=numeric_response,
         ))

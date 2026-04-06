@@ -23,7 +23,6 @@ export interface ResponsePayload {
   question_type: string
   attribute: string | null
   wording: string | null
-  demographic_key: string | null
   response: string
 }
 

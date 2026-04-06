@@ -175,7 +175,6 @@ def submit_results():
     data = request.get_json()
     panelist_id = str(data["panelist_id"])
     sample_number = data.get("sample_number")
-    session_label = data.get("session_label")
     session_date_raw = data.get("session_date")
     session_date = _date.fromisoformat(session_date_raw) if session_date_raw else None
 
@@ -192,15 +191,13 @@ def submit_results():
             except (TypeError, ValueError):
                 pass
         db.session.add(SensoryResult(
-            session_label=session_label,
             session_date=session_date,
             panelist_id=panelist_id,
             sample_number=sample_number,
             question_id=r.get("question_id"),
             question_type=q_type,
-            attribute=q.attribute if q else r.get("attribute"),
+            attribute=(q.attribute if q else None) or (q.demographic_key if q else None) or r.get("attribute") or r.get("demographic_key"),
             wording=q.wording if q else r.get("wording"),
-            demographic_key=r.get("demographic_key") or (q.demographic_key if q else None),
             response=str(raw_response) if raw_response is not None else None,
             numeric_response=numeric_response,
         ))

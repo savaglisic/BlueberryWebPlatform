@@ -9,6 +9,13 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/blueweb
       FLASK_DEBUG: "1"
 
+  db:
+    ports:
+      - "5432:5432"
+    networks:
+      - internal
+      - default
+
   frontend:
     build:
       context: ./frontend

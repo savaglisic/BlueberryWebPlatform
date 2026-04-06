@@ -376,10 +376,9 @@ export function DeepFlavor() {
         const payloads: ResponsePayload[] = questions.map((dq) => ({
           question_id: dq.id,
           question_type: dq.question_type,
-          attribute: dq.attribute,
+          attribute: dq.attribute ?? dq.demographic_key,
           wording: dq.wording,
-          demographic_key: dq.demographic_key,
-          response: demoResponses[dq.id.toString()] ?? '',
+          response: demoResponses[dq.id.toString()] ?? (dq.question_type === 'slider_100' ? '50' : ''),
         }))
         await submitDemographics(panelistId, payloads)
         setScreen('sample_select')
@@ -415,8 +414,7 @@ export function DeepFlavor() {
           question_type: q.question_type,
           attribute: q.attribute,
           wording: q.wording,
-          demographic_key: null,
-          response: questionResponses[q.id] ?? '',
+          response: questionResponses[q.id] ?? (q.question_type === 'slider_100' ? '50' : ''),
         }))
         await submitSampleResponse(panelistId, selectedSample, payloads)
         const newCompleted = [...completedSamples, selectedSample]
