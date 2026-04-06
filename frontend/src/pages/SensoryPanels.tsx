@@ -384,6 +384,18 @@ export function SensoryPanels() {
     || savedSamplesSignature !== draftSamplesSignature
   )
 
+  const duplicateSampleNumbers = useMemo(() => {
+    const seen = new Set<string>()
+    const dupes = new Set<string>()
+    for (const s of draftSamples) {
+      const num = (s.sample_number ?? '').trim()
+      if (!num) continue
+      if (seen.has(num)) dupes.add(num)
+      else seen.add(num)
+    }
+    return dupes
+  }, [draftSamples])
+
   const saveSetup = async (next: { samples_per_panelist: number; samples: SensorySample[] }) => {
     setIsSavingSetup(true)
     try {
@@ -507,7 +519,7 @@ export function SensoryPanels() {
               <Button variant="default" onClick={handleResetSetup} disabled={!hasSetupChanges || isSavingSetup}>
                 Reset
               </Button>
-              <Button color="indigo" onClick={handleSaveSetup} loading={isSavingSetup} disabled={!hasSetupChanges}>
+              <Button color="indigo" onClick={handleSaveSetup} loading={isSavingSetup} disabled={!hasSetupChanges || duplicateSampleNumbers.size > 0}>
                 Save
               </Button>
             </Group>
@@ -546,6 +558,7 @@ export function SensoryPanels() {
                         placeholder="e.g. 101"
                         onBlur={(e) => handleUpdateSampleRow(index, { sample_number: e.currentTarget.value })}
                         defaultValue={sample.sample_number}
+                        error={duplicateSampleNumbers.has((sample.sample_number ?? '').trim()) ? 'Duplicate' : undefined}
                       />
                     </Table.Td>
                     <Table.Td>

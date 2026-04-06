@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import aiLogo from '../assets/ailogo.png'
 import {
   Stack,
   Title,
@@ -42,15 +43,27 @@ type Screen =
 
 // ─── Shared layout ───────────────────────────────────────────────────────────
 
-function ScreenWrap({ children }: { children: React.ReactNode }) {
+function ScreenWrap({ children, onEnd }: { children: React.ReactNode; onEnd?: () => void }) {
   return (
     <Center style={{ minHeight: 'calc(100vh - 120px)' }}>
+      {onEnd && (
+        <Button
+          size="xs"
+          color="red"
+          variant="filled"
+          onClick={onEnd}
+          style={{ position: 'fixed', top: 16, right: 16, zIndex: 100 }}
+        >
+          End Session
+        </Button>
+      )}
       <Stack gap="xl" align="center" style={{ width: '100%', maxWidth: 680, padding: '0 1rem' }}>
         {children}
       </Stack>
     </Center>
   )
 }
+
 
 // ─── Question renderers ───────────────────────────────────────────────────────
 
@@ -121,7 +134,7 @@ function Slider100({ value, onChange }: { value: string; onChange: (v: string) =
   return (
     <Stack gap="md" style={{ width: '100%' }}>
       <Center>
-        <Text fw={900} style={{ fontSize: '5rem', lineHeight: 1 }} c="blue">
+        <Text fw={900} style={{ fontSize: 'clamp(3rem, 8vw, 5rem)', lineHeight: 1 }} c="blue">
           {Math.round(numVal)}
         </Text>
       </Center>
@@ -218,6 +231,19 @@ function QuestionInput({
       return <Slider100 value={value} onChange={onChange} />
     case 'multiple_choice':
     case 'demographic':
+      if (question.demographic_key === 'age')
+        return (
+          <TextInput
+            value={value}
+            onChange={(e) => onChange(e.currentTarget.value.replace(/\D/g, '').slice(0, 3))}
+            placeholder="Your age"
+            size="xl"
+            inputMode="numeric"
+            autoFocus
+            style={{ width: '100%', maxWidth: 200 }}
+            styles={{ input: { fontSize: '2rem', textAlign: 'center' } }}
+          />
+        )
       if (question.options.length > 0)
         return <MultipleChoice options={question.options} value={value} onChange={onChange} />
       return <TextResponse value={value} onChange={onChange} />
@@ -232,83 +258,7 @@ function QuestionInput({
 
 // ─── Number pad ──────────────────────────────────────────────────────────────
 
-function NumPad({
-  value,
-  onChange,
-  onSubmit,
-}: {
-  value: string
-  onChange: (v: string) => void
-  onSubmit: () => void
-}) {
-  const handleKey = (k: string) => {
-    if (k === 'del') {
-      onChange(value.slice(0, -1))
-    } else if (value.length < 3) {
-      onChange(value + k)
-    }
-  }
 
-  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del']
-
-  return (
-    <Stack gap="md" align="center" style={{ width: '100%', maxWidth: 320 }}>
-      {/* Display */}
-      <Box
-        style={{
-          width: '100%',
-          padding: '20px 24px',
-          borderRadius: 14,
-          border: '2px solid var(--mantine-color-default-border)',
-          textAlign: 'center',
-          minHeight: 80,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Text fw={900} style={{ fontSize: '3rem', letterSpacing: 8 }}>
-          {value || <Text c="dimmed" component="span" style={{ fontSize: '2rem' }}>_ _ _</Text>}
-        </Text>
-      </Box>
-
-      {/* Pad */}
-      <SimpleGrid cols={3} spacing={10} style={{ width: '100%' }}>
-        {keys.map((k, i) => (
-          <UnstyledButton
-            key={i}
-            onClick={() => k && handleKey(k)}
-            style={{
-              height: 72,
-              borderRadius: 12,
-              border: k ? '2px solid var(--mantine-color-default-border)' : 'none',
-              background: k === 'del' ? 'var(--mantine-color-red-light)' : k ? 'var(--mantine-color-default)' : 'transparent',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: k ? 'pointer' : 'default',
-              fontSize: '1.5rem',
-              fontWeight: 700,
-              transition: 'all 0.1s',
-            }}
-          >
-            {k === 'del' ? '⌫' : k}
-          </UnstyledButton>
-        ))}
-      </SimpleGrid>
-
-      <Button
-        size="xl"
-        fullWidth
-        disabled={value.length === 0}
-        onClick={onSubmit}
-        rightSection={<IconArrowRight size={20} />}
-      >
-        Continue
-      </Button>
-    </Stack>
-  )
-}
 
 // ─── Cup graphic ──────────────────────────────────────────────────────────────
 
@@ -317,23 +267,24 @@ function CupGraphic({ number }: { number?: string }) {
     <Stack align="center" gap={4}>
       <Box
         style={{
-          width: 120,
-          height: 140,
+          width: 'clamp(140px, 22vw, 220px)',
+          height: 'clamp(160px, 25vw, 250px)',
           position: 'relative',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <IconCup size={120} stroke={1.2} color="var(--mantine-color-blue-5)" />
+        <IconCup size="100%" stroke={1.2} color="var(--mantine-color-blue-5)" />
         {number && (
           <Text
             fw={900}
             style={{
               position: 'absolute',
-              fontSize: number.length > 2 ? '1.4rem' : '1.8rem',
+              fontSize: number.length > 2 ? 'clamp(1.4rem, 4vw, 2rem)' : 'clamp(1.8rem, 5vw, 2.6rem)',
               color: 'var(--mantine-color-blue-9)',
-              textShadow: '0 0 0 transparent',
+              top: '42%',
+              transform: 'translateY(-50%)',
             }}
           >
             {number}
@@ -369,6 +320,19 @@ export function DeepFlavor() {
   const [submitting, setSubmitting] = useState(false)
 
   // ── Handlers ──
+
+  const handleEndSession = () => {
+    setPanelistInput('')
+    setPanelistId('')
+    setSession(null)
+    setDemoIndex(0)
+    setDemoResponses({})
+    setSelectedSample(null)
+    setCompletedSamples([])
+    setQuestionIndex(0)
+    setQuestionResponses({})
+    setScreen('welcome')
+  }
 
   const handleBegin = () => {
     setPanelistInput('')
@@ -482,9 +446,9 @@ export function DeepFlavor() {
   if (screen === 'welcome') {
     return (
       <ScreenWrap>
-        <Text style={{ fontSize: '5rem' }}>🫐</Text>
+        <img src={aiLogo} alt="DeepFlavor" style={{ height: 'clamp(120px, 25vw, 220px)', objectFit: 'contain' }} />
         <Stack gap="xs" align="center">
-          <Title order={1} style={{ fontSize: '2.8rem', textAlign: 'center' }}>
+          <Title order={1} style={{ fontSize: 'clamp(1.8rem, 5vw, 2.8rem)', textAlign: 'center' }}>
             Sensory Panel
           </Title>
           <Text size="xl" c="dimmed" ta="center">
@@ -496,7 +460,7 @@ export function DeepFlavor() {
             {loadError}
           </Alert>
         )}
-        <Button size="xl" style={{ minWidth: 280, height: 72, fontSize: '1.4rem' }} onClick={handleBegin}>
+        <Button size="xl" style={{ minWidth: 'min(280px, 80vw)', fontSize: 'clamp(1.1rem, 3vw, 1.4rem)' }} onClick={handleBegin}>
           Begin
         </Button>
       </ScreenWrap>
@@ -505,23 +469,46 @@ export function DeepFlavor() {
 
   if (screen === 'identify') {
     return (
-      <ScreenWrap>
+      <ScreenWrap onEnd={handleEndSession}>
         <Stack gap="xs" align="center">
-          <Title order={2} style={{ fontSize: '2rem', textAlign: 'center' }}>
+          <Title order={2} style={{ fontSize: 'clamp(1.3rem, 4vw, 2rem)', textAlign: 'center' }}>
             Enter Your Panelist ID
           </Title>
           <Text c="dimmed" ta="center">
             Use the number on your name tag (1–3 digits)
           </Text>
         </Stack>
-        <NumPad value={panelistInput} onChange={setPanelistInput} onSubmit={handleIdentify} />
+        <Stack gap="md" align="center" style={{ width: '100%', maxWidth: 'min(320px, 90vw)' }}>
+          <TextInput
+            value={panelistInput}
+            onChange={(e) => {
+              const v = e.currentTarget.value.replace(/\D/g, '').slice(0, 3)
+              setPanelistInput(v)
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && panelistInput && handleIdentify()}
+            placeholder="e.g. 42"
+            size="xl"
+            inputMode="numeric"
+            autoFocus
+            styles={{ input: { fontSize: '2rem', textAlign: 'center', letterSpacing: 8 } }}
+          />
+          <Button
+            size="xl"
+            fullWidth
+            disabled={panelistInput.length === 0}
+            onClick={handleIdentify}
+            rightSection={<IconArrowRight size={20} />}
+          >
+            Continue
+          </Button>
+        </Stack>
       </ScreenWrap>
     )
   }
 
   if (screen === 'loading') {
     return (
-      <ScreenWrap>
+      <ScreenWrap onEnd={handleEndSession}>
         <Loader size="xl" />
         <Text size="lg" c="dimmed">
           Loading your session…
@@ -537,11 +524,10 @@ export function DeepFlavor() {
     const currentVal = demoResponses[q.id.toString()] ?? ''
     const isSlider = q.question_type === 'slider_100'
     const isInstruction = q.question_type === 'instruction'
-    const isMC = q.question_type === 'multiple_choice' || (q.question_type === 'demographic' && q.options.length > 0)
     const canAdvance = isInstruction || isSlider || currentVal.trim().length > 0
 
     return (
-      <ScreenWrap>
+      <ScreenWrap onEnd={handleEndSession}>
         {/* Progress */}
         <Stack gap={6} style={{ width: '100%' }}>
           <Group justify="space-between">
@@ -553,7 +539,7 @@ export function DeepFlavor() {
         </Stack>
 
         {/* Question */}
-        <Title order={2} ta="center" style={{ fontSize: '1.8rem' }}>
+        <Title order={2} ta="center" style={{ fontSize: 'clamp(1.2rem, 3.5vw, 1.8rem)' }}>
           {q.wording}
         </Title>
 
@@ -565,19 +551,16 @@ export function DeepFlavor() {
           }}
         />
 
-        {/* Auto-advance for MC, manual for text */}
-        {(isMC && currentVal) || !isMC ? (
-          <Button
-            size="xl"
-            disabled={!canAdvance || submitting}
-            loading={submitting}
-            onClick={handleDemoNext}
-            rightSection={<IconArrowRight size={20} />}
-            style={{ minWidth: 240 }}
-          >
-            {demoIndex + 1 === questions.length ? 'Continue' : 'Next'}
-          </Button>
-        ) : null}
+        <Button
+          size="xl"
+          disabled={!canAdvance || submitting}
+          loading={submitting}
+          onClick={handleDemoNext}
+          rightSection={<IconArrowRight size={20} />}
+          style={{ minWidth: 'min(240px, 80vw)' }}
+        >
+          {demoIndex + 1 === questions.length ? 'Continue' : 'Next'}
+        </Button>
       </ScreenWrap>
     )
   }
@@ -589,15 +572,15 @@ export function DeepFlavor() {
       : remaining
 
     return (
-      <ScreenWrap>
+      <ScreenWrap onEnd={handleEndSession}>
         {/* Progress badge */}
-        <Badge size="xl" variant="light" color="blue" style={{ fontSize: '1rem', padding: '10px 18px' }}>
+        <Badge size="xl" variant="light" color="blue" style={{ fontSize: 'clamp(0.8rem, 2.5vw, 1rem)', padding: 'clamp(6px, 1.5vw, 10px) clamp(10px, 3vw, 18px)' }}>
           {completedSamples.length} / {session.samples_per_panelist} samples rated
         </Badge>
 
         <Stack gap="xs" align="center">
           <CupGraphic />
-          <Title order={2} ta="center" style={{ fontSize: '2rem' }}>
+          <Title order={2} ta="center" style={{ fontSize: 'clamp(1.3rem, 4vw, 2rem)' }}>
             Select Your Sample
           </Title>
           <Text c="dimmed" ta="center" size="lg">
@@ -655,10 +638,10 @@ export function DeepFlavor() {
 
   if (screen === 'sample_confirm' && selectedSample) {
     return (
-      <ScreenWrap>
+      <ScreenWrap onEnd={handleEndSession}>
         <CupGraphic number={selectedSample} />
         <Stack gap="xs" align="center">
-          <Title order={2} style={{ fontSize: '2rem', textAlign: 'center' }}>
+          <Title order={2} style={{ fontSize: 'clamp(1.3rem, 4vw, 2rem)', textAlign: 'center' }}>
             Confirm Your Sample
           </Title>
           <Text size="xl" c="dimmed" ta="center">
@@ -669,7 +652,7 @@ export function DeepFlavor() {
             the number printed on your cup?
           </Text>
         </Stack>
-        <Stack gap="sm" style={{ width: '100%', maxWidth: 380 }}>
+        <Stack gap="sm" style={{ width: '100%', maxWidth: 'min(380px, 90vw)' }}>
           <Button
             size="xl"
             fullWidth
@@ -706,7 +689,7 @@ export function DeepFlavor() {
     const canAdvance = isInstruction || isSlider || currentVal.trim().length > 0
 
     return (
-      <ScreenWrap>
+      <ScreenWrap onEnd={handleEndSession}>
         {/* Header */}
         <Stack gap={4} style={{ width: '100%' }}>
           <Group justify="space-between">
@@ -728,7 +711,7 @@ export function DeepFlavor() {
         )}
 
         {/* Wording */}
-        <Title order={2} ta="center" style={{ fontSize: '1.8rem', lineHeight: 1.3 }}>
+        <Title order={2} ta="center" style={{ fontSize: 'clamp(1.2rem, 3.5vw, 1.8rem)', lineHeight: 1.3 }}>
           {q.wording}
         </Title>
 
@@ -746,7 +729,7 @@ export function DeepFlavor() {
           loading={submitting}
           onClick={handleQuestionNext}
           rightSection={!submitting && <IconArrowRight size={20} />}
-          style={{ minWidth: 240 }}
+          style={{ minWidth: 'min(240px, 80vw)' }}
         >
           {questionIndex + 1 === questions.length ? 'Submit Sample' : 'Next'}
         </Button>
@@ -760,11 +743,11 @@ export function DeepFlavor() {
     const finished = done >= total
 
     return (
-      <ScreenWrap>
+      <ScreenWrap onEnd={handleEndSession}>
         <Box
           style={{
-            width: 100,
-            height: 100,
+            width: 'clamp(70px, 15vw, 100px)',
+            height: 'clamp(70px, 15vw, 100px)',
             borderRadius: '50%',
             background: 'var(--mantine-color-green-light)',
             display: 'flex',
@@ -776,7 +759,7 @@ export function DeepFlavor() {
         </Box>
 
         <Stack gap="xs" align="center">
-          <Title order={2} style={{ fontSize: '2.2rem', textAlign: 'center' }}>
+          <Title order={2} style={{ fontSize: 'clamp(1.4rem, 4.5vw, 2.2rem)', textAlign: 'center' }}>
             Sample {selectedSample} Complete!
           </Title>
           <Text size="xl" c="dimmed" ta="center">
@@ -794,7 +777,7 @@ export function DeepFlavor() {
 
         <Button
           size="xl"
-          style={{ minWidth: 280, height: 72, fontSize: '1.4rem' }}
+          style={{ minWidth: 'min(280px, 80vw)', fontSize: 'clamp(1.1rem, 3vw, 1.4rem)' }}
           onClick={handleSampleDoneNext}
           color={finished ? 'green' : 'blue'}
           rightSection={!finished && <IconArrowRight size={20} />}
@@ -807,10 +790,10 @@ export function DeepFlavor() {
 
   if (screen === 'complete') {
     return (
-      <ScreenWrap>
-        <Text style={{ fontSize: '5rem' }}>🎉</Text>
+      <ScreenWrap onEnd={handleEndSession}>
+        <Text style={{ fontSize: 'clamp(3rem, 8vw, 5rem)' }}>🎉</Text>
         <Stack gap="xs" align="center">
-          <Title order={1} style={{ fontSize: '2.8rem', textAlign: 'center' }}>
+          <Title order={1} style={{ fontSize: 'clamp(1.8rem, 5vw, 2.8rem)', textAlign: 'center' }}>
             All Done!
           </Title>
           <Text size="xl" c="dimmed" ta="center">
