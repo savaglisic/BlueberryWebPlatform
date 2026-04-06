@@ -138,6 +138,28 @@ class SensorySample(db.Model):
         }
 
 
+class Panelist(db.Model):
+    """Tracks a panelist's session for a given date. Panelist IDs repeat across days."""
+    __tablename__ = "panelists"
+
+    id = db.Column(db.Integer, primary_key=True)
+    panelist_id = db.Column(db.String(50), nullable=False)
+    session_date = db.Column(db.Date, nullable=False)
+    demographics_complete = db.Column(db.Boolean, default=False, nullable=False)
+    started_at = db.Column(db.DateTime, server_default=db.func.now())
+
+    __table_args__ = (db.UniqueConstraint("panelist_id", "session_date", name="uq_panelist_date"),)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "panelist_id": self.panelist_id,
+            "session_date": self.session_date.isoformat(),
+            "demographics_complete": self.demographics_complete,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+        }
+
+
 class SensoryResult(db.Model):
     __tablename__ = "sensory_results"
 
