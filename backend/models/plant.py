@@ -40,6 +40,7 @@ class PlantData(db.Model):
     notes = db.Column(db.String(255))
     timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     fruitfirm_timestamp = db.Column(db.DateTime)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=True)
     week = db.Column(db.Integer, default=lambda: datetime.now(timezone.utc).isocalendar()[1])
 
     def to_dict(self):

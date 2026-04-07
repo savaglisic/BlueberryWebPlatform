@@ -2,7 +2,7 @@ import os
 from flask import Flask
 from config import config
 from extensions import db, cors, migrate
-from routes import auth_bp, whitelist_bp, plant_data_bp, genotypes_bp, analytics_bp, options_bp, sensory_bp, deepflavor_bp
+from routes import auth_bp, whitelist_bp, plant_data_bp, genotypes_bp, analytics_bp, options_bp, sensory_bp, deepflavor_bp, me_bp
 
 
 def create_app(env: str | None = None) -> Flask:
@@ -15,7 +15,7 @@ def create_app(env: str | None = None) -> Flask:
     migrate.init_app(app, db)
     cors.init_app(app, resources={r"/api/*": {"origins": app.config["CORS_ORIGINS"]}})
 
-    blueprints = [auth_bp, whitelist_bp, plant_data_bp, genotypes_bp, analytics_bp, options_bp, sensory_bp, deepflavor_bp]
+    blueprints = [auth_bp, whitelist_bp, plant_data_bp, genotypes_bp, analytics_bp, options_bp, sensory_bp, deepflavor_bp, me_bp]
     for bp in blueprints:
         app.register_blueprint(bp, url_prefix="/api")
 

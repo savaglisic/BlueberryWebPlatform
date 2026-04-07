@@ -5,6 +5,7 @@ import {
   Pagination, Modal, Select, NumberInput, Text, ActionIcon, Badge,
   Paper, Loader, Center, Popover, Checkbox, ScrollArea, Divider, Grid, Switch,
 } from '@mantine/core'
+import { DatePicker } from '@mantine/dates'
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
 import { modals } from '@mantine/modals'
@@ -46,24 +47,25 @@ const ALL_COLUMNS: { key: keyof PlantRecord; label: string; required?: boolean }
   { key: 'sd_diameter', label: 'SD Diameter' },
   { key: 'notes', label: 'Notes' },
   { key: 'week', label: 'Week' },
-  { key: 'timestamp', label: 'Timestamp', required: true },
+  { key: 'timestamp', label: 'Barcode Created' },
+  { key: 'updated_at', label: 'Last Modified' },
   { key: 'fruitfirm_timestamp', label: 'FirmTimestamp' },
 ]
 
 const DEFAULT_VISIBLE = new Set<keyof PlantRecord>([
-  'barcode', 'genotype', 'stage', 'site', 'block', 'project', 'mass', 'ph', 'brix', 'tta', 'week', 'timestamp',
+  'barcode', 'genotype', 'stage', 'site', 'block', 'project', 'mass', 'ph', 'brix', 'tta', 'avg_firmness', 'week', 'timestamp', 'updated_at',
 ])
 
 function loadVisibleCols(): Set<keyof PlantRecord> {
   try {
-    const stored = localStorage.getItem('fqdb_columns')
+    const stored = localStorage.getItem('fqdb_columns_v2')
     if (stored) return new Set(JSON.parse(stored))
   } catch { /* ignore */ }
   return new Set(DEFAULT_VISIBLE)
 }
 
 function saveVisibleCols(cols: Set<keyof PlantRecord>) {
-  localStorage.setItem('fqdb_columns', JSON.stringify([...cols]))
+  localStorage.setItem('fqdb_columns_v2', JSON.stringify([...cols]))
 }
 
 function QueryBuilder({ filters, onChange }: { filters: Filter[]; onChange: (f: Filter[]) => void }) {
@@ -248,16 +250,22 @@ export function FQDatabase() {
   const [editOpen, { open: openEdit, close: closeEdit }] = useDisclosure(false)
   const [yieldSearch, setYieldSearch] = useState('')
   const [visibleCols, setVisibleCols] = useState<Set<keyof PlantRecord>>(loadVisibleCols)
+  const [dateFilterOpen, setDateFilterOpen] = useState(false)
+  const [dateFilterField, setDateFilterField] = useState<'timestamp' | 'updated_at'>('timestamp')
+  const [dateFilterValue, setDateFilterValue] = useState<string | null>(null)
+  const [activeDateFilter, setActiveDateFilter] = useState<{ field: 'timestamp' | 'updated_at'; date: string } | undefined>(undefined)
   const qc = useQueryClient()
 
   const activeYearPrefix = currentYearOnly ? currentYearPrefix : undefined
 
   const displayCols = ALL_COLUMNS.filter((c) => visibleCols.has(c.key))
 
-  const { data: tableData, isFetching: tableFetching } = useQuery({
-    queryKey: ['plant-data', page, activeFilters, activeYearPrefix],
-    queryFn: () => getPlantData(page, PAGE_SIZE, activeFilters, activeYearPrefix),
+  const { data: tableData, isLoading: tableLoading } = useQuery({
+    queryKey: ['plant-data', page, activeFilters, activeYearPrefix, activeDateFilter],
+    queryFn: () => getPlantData(page, PAGE_SIZE, activeFilters, activeYearPrefix, activeDateFilter),
     enabled: view === 'table',
+    refetchInterval: 30_000,
+    placeholderData: (prev) => prev,
   })
 
   const { data: yieldData, isFetching: yieldFetching } = useQuery({
@@ -305,7 +313,15 @@ export function FQDatabase() {
   }
 
   const applyFilters = () => { setActiveFilters(filters); setPage(1) }
-  const clearFilters = () => { setFilters([]); setActiveFilters([]); setPage(1) }
+  const clearFilters = () => { setFilters([]); setActiveFilters([]); setActiveDateFilter(undefined); setDateFilterValue(null); setPage(1) }
+  const applyDateFilter = () => {
+    if (!dateFilterValue) return
+    const iso = dateFilterValue.slice(0, 10)
+    setActiveDateFilter({ field: dateFilterField, date: iso })
+    setDateFilterOpen(false)
+    setPage(1)
+  }
+  const clearDateFilter = () => { setActiveDateFilter(undefined); setDateFilterValue(null); setPage(1) }
 
   return (
     <Stack>
@@ -343,13 +359,43 @@ export function FQDatabase() {
             <QueryBuilder filters={filters} onChange={setFilters} />
             <Group>
               <Button size="xs" leftSection={<IconSearch size={14} />} onClick={applyFilters}>Apply</Button>
-              {activeFilters.length > 0 && <Button size="xs" variant="subtle" color="red" onClick={clearFilters}>Clear</Button>}
+              <Popover opened={dateFilterOpen} onClose={() => setDateFilterOpen(false)} withArrow shadow="md">
+                <Popover.Target>
+                  <Button size="xs" variant="light" onClick={() => setDateFilterOpen((o) => !o)}>
+                    Quick Date Filter
+                  </Button>
+                </Popover.Target>
+                <Popover.Dropdown>
+                  <Stack gap="xs">
+                    <Select
+                      label="Filter by"
+                      size="xs"
+                      data={[
+                        { value: 'timestamp', label: 'Barcode Created' },
+                        { value: 'updated_at', label: 'Last Modified' },
+                      ]}
+                      value={dateFilterField}
+                      onChange={(v) => setDateFilterField(v as 'timestamp' | 'updated_at')}
+                    />
+                    <DatePicker value={dateFilterValue} onChange={setDateFilterValue} />
+                    <Button size="xs" onClick={applyDateFilter} disabled={!dateFilterValue}>Apply</Button>
+                  </Stack>
+                </Popover.Dropdown>
+              </Popover>
+              {(activeFilters.length > 0 || activeDateFilter) && (
+                <Button size="xs" variant="subtle" color="red" onClick={clearFilters}>Clear All</Button>
+              )}
             </Group>
-            {activeFilters.length > 0 && (
+            {(activeFilters.length > 0 || activeDateFilter) && (
               <Group gap="xs">
                 {activeFilters.map((f, i) => (
                   <Badge key={i} variant="light" size="sm">{f.field} {f.operator} "{f.value}"</Badge>
                 ))}
+                {activeDateFilter && (
+                  <Badge variant="light" size="sm" color="blue" rightSection={<ActionIcon size={12} variant="transparent" onClick={clearDateFilter}><IconX size={10} /></ActionIcon>}>
+                    {activeDateFilter.field === 'timestamp' ? 'Created' : 'Modified'}: {activeDateFilter.date}
+                  </Badge>
+                )}
               </Group>
             )}
           </Stack>
@@ -367,9 +413,9 @@ export function FQDatabase() {
       )}
 
       <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
-        {(tableFetching || yieldFetching) && <Center p="xl"><Loader size="sm" /></Center>}
+        {(tableLoading || yieldFetching) && <Center p="xl"><Loader size="sm" /></Center>}
 
-        {view === 'table' && tableData && !tableFetching && (
+        {view === 'table' && tableData && !tableLoading && (
           <ScrollArea>
             <Table striped highlightOnHover withTableBorder stickyHeader>
               <Table.Thead>
@@ -384,7 +430,7 @@ export function FQDatabase() {
                     {displayCols.map((col) => (
                       <Table.Td key={col.key} fz="xs" style={{ whiteSpace: 'nowrap' }}>
                         {row[col.key] !== null && row[col.key] !== undefined
-                          ? col.key === 'timestamp' || col.key === 'fruitfirm_timestamp'
+                          ? col.key === 'timestamp' || col.key === 'fruitfirm_timestamp' || col.key === 'updated_at'
                             ? new Date(row[col.key] as string).toLocaleString()
                             : String(row[col.key])
                           : <Text c="dimmed" fz="xs">—</Text>}

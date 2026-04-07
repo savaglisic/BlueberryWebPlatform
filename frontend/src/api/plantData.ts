@@ -26,6 +26,7 @@ export interface PlantRecord {
   notes?: string
   timestamp?: string
   fruitfirm_timestamp?: string
+  updated_at?: string
   week?: number
 }
 
@@ -44,10 +45,23 @@ export const checkBarcode = (barcode: string) =>
 export const deletePlantData = (barcode: string) =>
   client.delete('/delete_plant_data', { data: { barcode } }).then((r) => r.data)
 
-export const getPlantData = (page: number, per_page: number, filters: Filter[], yearPrefix?: string) =>
+export const getPlantData = (
+  page: number,
+  per_page: number,
+  filters: Filter[],
+  yearPrefix?: string,
+  dateFilter?: { field: 'timestamp' | 'updated_at'; date: string },
+) =>
   client
     .get('/get_plant_data', {
-      params: { page, per_page, filters: filters.length ? JSON.stringify(filters) : undefined, year_prefix: yearPrefix },
+      params: {
+        page,
+        per_page,
+        filters: filters.length ? JSON.stringify(filters) : undefined,
+        year_prefix: yearPrefix,
+        date_filter_field: dateFilter?.field,
+        date_filter_date: dateFilter?.date,
+      },
     })
     .then((r) => r.data)
 

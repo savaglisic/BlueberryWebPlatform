@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
+import { useUser } from '../context/UserContext'
 import darkLogo from '../assets/whitetextnobg_logo.webp'
 import lightLogo from '../assets/blacktextnobg_logo.webp'
 import berryLogo from '../assets/berrylogo.webp'
@@ -28,19 +29,21 @@ import {
   IconMicroscope,
 } from '@tabler/icons-react'
 
-const navItems = [
-  { label: 'Add Samples', path: '/add-samples', icon: IconPlant2 },
-  { label: 'FQ Lab', path: '/fq-lab', icon: IconFlask },
-  { label: 'FQ Database', path: '/fq-database', icon: IconDatabase },
-  { label: 'Yield Summary', path: '/fq-database/yield-summary', icon: IconChartBar },
-  { label: 'Search Pedigree', path: '/search-pedigree', icon: IconSearch },
-  { label: 'Sensory Questions', path: '/sensory-panels', icon: IconMicroscope },
-  { label: 'Configure', path: '/configure', icon: IconSettings },
+const allNavItems = [
+  { label: 'Add Samples', path: '/add-samples', icon: IconPlant2, adminOnly: false },
+  { label: 'FQ Lab', path: '/fq-lab', icon: IconFlask, adminOnly: false },
+  { label: 'FQ Database', path: '/fq-database', icon: IconDatabase, adminOnly: true },
+  { label: 'Yield Summary', path: '/fq-database/yield-summary', icon: IconChartBar, adminOnly: true },
+  { label: 'Search Pedigree', path: '/search-pedigree', icon: IconSearch, adminOnly: true },
+  { label: 'Sensory Questions', path: '/sensory-panels', icon: IconMicroscope, adminOnly: true },
+  { label: 'Configure', path: '/configure', icon: IconSettings, adminOnly: true },
 ]
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileOpened, setMobileOpened] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const { isAdmin } = useUser()
+  const navItems = allNavItems.filter((item) => !item.adminOnly || isAdmin)
   const { colorScheme, toggleColorScheme } = useMantineColorScheme()
   const isDark = colorScheme === 'dark'
 

@@ -6,6 +6,7 @@ import { Notifications } from '@mantine/notifications'
 import { ModalsProvider } from '@mantine/modals'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './context/AuthContext'
+import { UserProvider } from './context/UserContext'
 import App from './App'
 
 import '@mantine/core/styles.css'
@@ -38,7 +39,9 @@ createRoot(document.getElementById('root')!).render(
           <ModalsProvider>
             <Notifications position="top-right" />
             <AuthProvider>
-              <App />
+              <UserProvider>
+                <App />
+              </UserProvider>
             </AuthProvider>
           </ModalsProvider>
         </MantineProvider>

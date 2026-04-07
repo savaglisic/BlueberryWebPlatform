@@ -65,6 +65,8 @@ def get_plant_data():
     per_page = request.args.get("per_page", 10, type=int)
     filters = request.args.get("filters")
     year_prefix = request.args.get("year_prefix")
+    date_filter_field = request.args.get("date_filter_field")
+    date_filter_date = request.args.get("date_filter_date")
 
     query = PlantData.query
 
@@ -90,7 +92,18 @@ def get_plant_data():
             from sqlalchemy import or_
             query = query.filter(or_(*include_clauses))
 
-    query = query.order_by(PlantData.timestamp.desc())
+    if date_filter_field and date_filter_date:
+        try:
+            day_start = datetime.strptime(date_filter_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            day_end = day_start.replace(hour=23, minute=59, second=59)
+            col = PlantData.timestamp if date_filter_field == "timestamp" else PlantData.updated_at
+            query = query.filter(col >= day_start, col <= day_end)
+        except ValueError:
+            pass
+
+    from sqlalchemy import case, func
+    sort_col = func.coalesce(PlantData.updated_at, PlantData.timestamp)
+    query = query.order_by(sort_col.desc())
     paginated = query.paginate(page=page, per_page=per_page, error_out=False)
 
     return jsonify({

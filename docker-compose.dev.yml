@@ -8,6 +8,7 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/blueweb
       FLASK_DEBUG: "1"
+      DEV_USER_EMAIL: savaglisic@ufl.edu
 
   db:
     ports:

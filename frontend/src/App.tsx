@@ -8,6 +8,13 @@ import { SearchPedigree } from './pages/SearchPedigree'
 import { Configure } from './pages/Configure'
 import { SensoryPanels } from './pages/SensoryPanels'
 import { DeepFlavor } from './pages/DeepFlavor'
+import { useUser } from './context/UserContext'
+
+function AdminRoute({ element }: { element: React.ReactElement }) {
+  const { isAdmin, loading } = useUser()
+  if (loading) return null
+  return isAdmin ? element : <Navigate to="/add-samples" replace />
+}
 
 export default function App() {
   return (
@@ -29,11 +36,11 @@ export default function App() {
               <Route path="/login" element={<Navigate to="/add-samples" replace />} />
               <Route path="/add-samples" element={<AddSamples />} />
               <Route path="/fq-lab" element={<FQLab />} />
-              <Route path="/fq-database" element={<FQDatabase />} />
-              <Route path="/fq-database/yield-summary" element={<FQDatabase />} />
-              <Route path="/search-pedigree" element={<SearchPedigree />} />
-              <Route path="/sensory-panels" element={<SensoryPanels />} />
-              <Route path="/configure" element={<Configure />} />
+              <Route path="/fq-database" element={<AdminRoute element={<FQDatabase />} />} />
+              <Route path="/fq-database/yield-summary" element={<AdminRoute element={<FQDatabase />} />} />
+              <Route path="/search-pedigree" element={<AdminRoute element={<SearchPedigree />} />} />
+              <Route path="/sensory-panels" element={<AdminRoute element={<SensoryPanels />} />} />
+              <Route path="/configure" element={<AdminRoute element={<Configure />} />} />
               <Route path="*" element={<Navigate to="/add-samples" replace />} />
             </Routes>
           </Layout>
