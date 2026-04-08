@@ -116,7 +116,6 @@ def get_plant_data():
 
 
 @plant_data_bp.route("/fruit_firm", methods=["POST"])
-@require_api_key
 def fruit_firm():
     data = request.get_json()
     barcode = data.get("barcode")
