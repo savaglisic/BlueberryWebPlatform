@@ -28,7 +28,7 @@ jobs:
       - name: Pull latest images and start services
         run: |
           docker compose pull --ignore-buildable
-          docker compose up --build -d
+          docker compose up --build --force-recreate -d
 
       - name: Run database migrations
         run: |
