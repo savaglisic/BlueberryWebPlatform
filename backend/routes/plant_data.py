@@ -131,6 +131,8 @@ def fruit_firm():
     record.avg_diameter = data.get("avg_diameter", record.avg_diameter)
     record.sd_firmness = data.get("sd_firmness", record.sd_firmness)
     record.sd_diameter = data.get("sd_diameter", record.sd_diameter)
+    record.firm_category = data.get("firm_category", record.firm_category)
+    record.size_category = data.get("size_category", record.size_category)
     record.fruitfirm_timestamp = datetime.now(ZoneInfo("America/New_York"))
 
     db.session.commit()

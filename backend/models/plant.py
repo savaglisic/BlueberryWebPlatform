@@ -35,6 +35,8 @@ class PlantData(db.Model):
     avg_diameter = db.Column(db.Float)
     sd_firmness = db.Column(db.Float)
     sd_diameter = db.Column(db.Float)
+    firm_category = db.Column(db.Float)
+    size_category = db.Column(db.Float)
 
     # Meta
     notes = db.Column(db.String(255))
