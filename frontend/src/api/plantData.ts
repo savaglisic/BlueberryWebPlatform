@@ -23,6 +23,8 @@ export interface PlantRecord {
   avg_diameter?: number
   sd_firmness?: number
   sd_diameter?: number
+  firm_category?: number
+  size_category?: number
   notes?: string
   timestamp?: string
   fruitfirm_timestamp?: string

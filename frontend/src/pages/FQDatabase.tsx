@@ -45,6 +45,8 @@ const ALL_COLUMNS: { key: keyof PlantRecord; label: string; required?: boolean }
   { key: 'avg_diameter', label: 'Avg Diameter' },
   { key: 'sd_firmness', label: 'SD Firmness' },
   { key: 'sd_diameter', label: 'SD Diameter' },
+  { key: 'firm_category', label: 'Firm Category' },
+  { key: 'size_category', label: 'Size Category' },
   { key: 'notes', label: 'Notes' },
   { key: 'week', label: 'Week' },
   { key: 'timestamp', label: 'Barcode Created' },
