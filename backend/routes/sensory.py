@@ -248,23 +248,38 @@ def get_results():
     if date_filter:
         base = base.filter(SensoryResult.session_date == date_filter)
 
-    # Paginate by distinct (panelist_id, sample_number) pairs
+    # Paginate by (panelist_id, sample_number) pairs, newest submission first
+    from sqlalchemy import func as _func
     pairs_q = (
-        base.with_entities(SensoryResult.panelist_id, SensoryResult.sample_number)
-        .distinct()
-        .order_by(SensoryResult.panelist_id, SensoryResult.sample_number)
+        base.filter(SensoryResult.sample_number.isnot(None))
+        .with_entities(
+            SensoryResult.panelist_id,
+            SensoryResult.sample_number,
+            _func.max(SensoryResult.recorded_at).label("latest"),
+        )
+        .group_by(SensoryResult.panelist_id, SensoryResult.sample_number)
+        .order_by(db.text("latest DESC"))
     )
     total_pairs = pairs_q.count()
-    pairs = pairs_q.offset((page - 1) * per_page).limit(per_page).all()
+    pairs = [(r.panelist_id, r.sample_number) for r in pairs_q.offset((page - 1) * per_page).limit(per_page).all()]
 
     if not pairs:
         return jsonify({"results": [], "total": total_pairs, "page": page, "per_page": per_page})
 
-    results = (
+    panelist_ids = list({p for p, _ in pairs})
+    experimental = (
         base.filter(tuple_(SensoryResult.panelist_id, SensoryResult.sample_number).in_(pairs))
         .order_by(SensoryResult.panelist_id, SensoryResult.sample_number)
         .all()
     )
+    demographic = (
+        base.filter(
+            SensoryResult.sample_number.is_(None),
+            SensoryResult.panelist_id.in_(panelist_ids),
+        )
+        .all()
+    )
+    results = experimental + demographic
     return jsonify({
         "results": [r.to_dict() for r in results],
         "total": total_pairs,

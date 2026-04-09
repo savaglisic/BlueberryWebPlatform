@@ -220,5 +220,5 @@ class SensoryResult(db.Model):
             "wording": self.wording,
             "response": self.response,
             "numeric_response": self.numeric_response,
-            "recorded_at": self.recorded_at.isoformat() if self.recorded_at else None,
+            "recorded_at": self.recorded_at.isoformat() + "Z" if self.recorded_at else None,
         }

@@ -1239,40 +1239,56 @@ export function SensoryPanels() {
 
 const PER_PAGE = 50
 
-function pivotResults(results: SensoryResult[]) {
-  const experimentalResults = results.filter((r) => r.question_type !== 'demographic' && r.sample_number)
-  const demographicResults = results.filter((r) => r.question_type === 'demographic')
+const ET_LOCALE = 'en-US'
+const ET_TZ = 'America/New_York'
 
-  const attributes = Array.from(new Set(experimentalResults.map((r) => r.attribute ?? r.wording ?? ''))).filter(Boolean)
-  const demoAttributes = Array.from(new Set(demographicResults.map((r) => r.attribute ?? r.wording ?? ''))).filter(Boolean)
+function toET(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString(ET_LOCALE, { timeZone: ET_TZ, month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+}
 
-  const panelistDemoMap: Record<string, Record<string, string>> = {}
-  for (const r of demographicResults) {
-    const col = r.attribute ?? r.wording ?? ''
-    if (!panelistDemoMap[r.panelist_id]) panelistDemoMap[r.panelist_id] = {}
-    panelistDemoMap[r.panelist_id][col] = r.response ?? ''
-  }
-
-  const byPanelistSample: Record<string, { panelist_id: string; sample_number: string; cols: Record<string, string> }> = {}
-  for (const r of experimentalResults) {
+function pivotBerryResults(results: SensoryResult[]) {
+  const experimental = results.filter((r) => r.sample_number != null)
+  const attributes = Array.from(new Set(experimental.map((r) => r.attribute ?? r.wording ?? ''))).filter(Boolean)
+  const byKey: Record<string, { panelist_id: string; sample_number: string; cols: Record<string, string>; submitted_at: string }> = {}
+  for (const r of experimental) {
     const key = `${r.panelist_id}||${r.sample_number}`
-    if (!byPanelistSample[key]) byPanelistSample[key] = { panelist_id: r.panelist_id, sample_number: r.sample_number!, cols: {} }
-    byPanelistSample[key].cols[r.attribute ?? r.wording ?? ''] = r.response ?? ''
+    if (!byKey[key]) byKey[key] = { panelist_id: r.panelist_id, sample_number: r.sample_number!, cols: {}, submitted_at: r.recorded_at ?? '' }
+    byKey[key].cols[r.attribute ?? r.wording ?? ''] = r.response ?? ''
+    if (r.recorded_at && r.recorded_at > byKey[key].submitted_at) byKey[key].submitted_at = r.recorded_at
   }
+  const rows = Object.values(byKey).sort((a, b) => b.submitted_at.localeCompare(a.submitted_at))
+  return { rows, attributes }
+}
 
-  return {
-    rows: Object.values(byPanelistSample),
-    allCols: [...demoAttributes, ...attributes],
-    demoAttributes,
-    attributes,
-    panelistDemoMap,
+function pivotDemoResults(results: SensoryResult[]) {
+  const demographic = results.filter((r) => r.sample_number == null)
+  const demoAttributes = Array.from(new Set(demographic.map((r) => r.attribute ?? r.wording ?? ''))).filter(Boolean)
+  const byPanelist: Record<string, { panelist_id: string; cols: Record<string, string>; submitted_at: string }> = {}
+  for (const r of demographic) {
+    if (!byPanelist[r.panelist_id]) byPanelist[r.panelist_id] = { panelist_id: r.panelist_id, cols: {}, submitted_at: r.recorded_at ?? '' }
+    byPanelist[r.panelist_id].cols[r.attribute ?? r.wording ?? ''] = r.response ?? ''
+    if (r.recorded_at && r.recorded_at > byPanelist[r.panelist_id].submitted_at) byPanelist[r.panelist_id].submitted_at = r.recorded_at
   }
+  const rows = Object.values(byPanelist).sort((a, b) => b.submitted_at.localeCompare(a.submitted_at))
+  return { rows, demoAttributes }
+}
+
+function downloadCsv(filename: string, headers: string[], csvRows: string[][]) {
+  const escape = (v: string) => v.includes(',') || v.includes('"') || v.includes('\n') ? `"${v.replace(/"/g, '""')}"` : v
+  const lines = [headers.join(','), ...csvRows.map((r) => r.map(escape).join(','))].join('\n')
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([lines], { type: 'text/csv' }))
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(a.href)
 }
 
 function ResultsTab() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [subTab, setSubTab] = useState<string | null>('berry')
   const [page, setPage] = useState(1)
-  const [downloading, setDownloading] = useState(false)
+  const [downloading, setDownloading] = useState<'berry' | 'demo' | 'combined' | null>(null)
 
   const { data: dates = [], isLoading: datesLoading } = useQuery({
     queryKey: ['sensory-result-dates'],
@@ -1290,36 +1306,58 @@ function ResultsTab() {
     if (dates.length > 0 && !selectedDate) setSelectedDate(dates[0])
   }, [dates, selectedDate])
 
-  useEffect(() => { setPage(1) }, [selectedDate])
+  useEffect(() => { setPage(1) }, [selectedDate, subTab])
 
-  const handleDownloadCsv = async () => {
-    if (!selectedDate) return
-    setDownloading(true)
+  const fetchAll = async () => {
+    if (!selectedDate) return []
+    const first = await getSensoryResults(selectedDate, 1, 10000)
+    return first.results
+  }
+
+  const handleDownloadBerry = async () => {
+    setDownloading('berry')
     try {
-      const first = await getSensoryResults(selectedDate, 1, 10000)
-      const allResults = first.results
-      const { rows, allCols, demoAttributes, attributes, panelistDemoMap } = pivotResults(allResults)
-      const headers = ['panelist_id', 'sample_number', ...demoAttributes, ...attributes]
-      const csvRows = rows.map((row) =>
-        headers.map((h) => {
-          if (h === 'panelist_id') return row.panelist_id
-          if (h === 'sample_number') return row.sample_number
-          const val = row.cols[h] ?? panelistDemoMap[row.panelist_id]?.[h] ?? ''
-          return val.includes(',') || val.includes('"') ? `"${val.replace(/"/g, '""')}"` : val
-        }).join(',')
-      )
-      const csv = [headers.join(','), ...csvRows].join('\n')
-      const blob = new Blob([csv], { type: 'text/csv' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `panel_results_${selectedDate}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
-      void allCols
-    } finally {
-      setDownloading(false)
-    }
+      const all = await fetchAll()
+      const { rows, attributes } = pivotBerryResults(all)
+      const headers = ['submitted_at_et', 'panelist_id', 'sample_number', ...attributes]
+      const csvRows = rows.map((row) => [
+        toET(row.submitted_at), row.panelist_id, row.sample_number,
+        ...attributes.map((a) => row.cols[a] ?? ''),
+      ])
+      downloadCsv(`berry_results_${selectedDate}.csv`, headers, csvRows)
+    } finally { setDownloading(null) }
+  }
+
+  const handleDownloadDemo = async () => {
+    setDownloading('demo')
+    try {
+      const all = await fetchAll()
+      const { rows, demoAttributes } = pivotDemoResults(all)
+      const headers = ['submitted_at_et', 'panelist_id', ...demoAttributes]
+      const csvRows = rows.map((row) => [
+        toET(row.submitted_at), row.panelist_id,
+        ...demoAttributes.map((a) => row.cols[a] ?? ''),
+      ])
+      downloadCsv(`demographics_${selectedDate}.csv`, headers, csvRows)
+    } finally { setDownloading(null) }
+  }
+
+  const handleDownloadCombined = async () => {
+    setDownloading('combined')
+    try {
+      const all = await fetchAll()
+      const { rows: berryRows, attributes } = pivotBerryResults(all)
+      const { demoAttributes, rows: demoRows } = pivotDemoResults(all)
+      const demoMap: Record<string, (typeof demoRows)[0]> = {}
+      for (const r of demoRows) demoMap[r.panelist_id] = r
+      const headers = ['submitted_at_et', 'panelist_id', 'sample_number', ...demoAttributes, ...attributes]
+      const csvRows = berryRows.map((row) => [
+        toET(row.submitted_at), row.panelist_id, row.sample_number,
+        ...demoAttributes.map((a) => demoMap[row.panelist_id]?.cols[a] ?? ''),
+        ...attributes.map((a) => row.cols[a] ?? ''),
+      ])
+      downloadCsv(`combined_results_${selectedDate}.csv`, headers, csvRows)
+    } finally { setDownloading(null) }
   }
 
   if (datesLoading) return <Center p="xl"><Loader /></Center>
@@ -1335,7 +1373,8 @@ function ResultsTab() {
   const results = pageData?.results ?? []
   const totalPairs = pageData?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(totalPairs / PER_PAGE))
-  const { rows, allCols, panelistDemoMap } = pivotResults(results)
+  const { rows: berryRows, attributes } = pivotBerryResults(results)
+  const { rows: demoRows, demoAttributes } = pivotDemoResults(results)
 
   return (
     <Stack>
@@ -1347,62 +1386,98 @@ function ResultsTab() {
           onChange={setSelectedDate}
           style={{ minWidth: 200 }}
         />
-        <Button
-          leftSection={<IconDownload size={14} />}
-          variant="default"
-          disabled={!totalPairs}
-          loading={downloading}
-          onClick={handleDownloadCsv}
-        >
-          Download CSV
-        </Button>
+        <Group gap="xs">
+          <Button size="xs" variant="default" leftSection={<IconDownload size={13} />}
+            disabled={!totalPairs} loading={downloading === 'berry'} onClick={handleDownloadBerry}>
+            Berry CSV
+          </Button>
+          <Button size="xs" variant="default" leftSection={<IconDownload size={13} />}
+            disabled={!totalPairs} loading={downloading === 'demo'} onClick={handleDownloadDemo}>
+            Demographics CSV
+          </Button>
+          <Button size="xs" variant="filled" leftSection={<IconDownload size={13} />}
+            disabled={!totalPairs} loading={downloading === 'combined'} onClick={handleDownloadCombined}>
+            Combined CSV
+          </Button>
+        </Group>
       </Group>
 
-      {resultsLoading && !pageData ? (
-        <Center p="xl"><Loader /></Center>
-      ) : rows.length === 0 ? (
-        <Paper withBorder p="xl" radius="md">
-          <Center><Text c="dimmed">No responses for this date.</Text></Center>
-        </Paper>
-      ) : (
-        <Stack gap="sm">
-          <Paper withBorder radius="md" style={{ overflow: 'hidden', opacity: resultsLoading ? 0.6 : 1, transition: 'opacity 0.15s' }}>
-            <ScrollArea>
-              <Table striped highlightOnHover withColumnBorders style={{ whiteSpace: 'nowrap' }}>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Panelist</Table.Th>
-                    <Table.Th>Sample</Table.Th>
-                    {allCols.map((col) => (
-                      <Table.Th key={col}>{col}</Table.Th>
-                    ))}
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {rows.map((row) => (
-                    <Table.Tr key={`${row.panelist_id}||${row.sample_number}`}>
-                      <Table.Td>{row.panelist_id}</Table.Td>
-                      <Table.Td>{row.sample_number}</Table.Td>
-                      {allCols.map((col) => (
-                        <Table.Td key={col}>
-                          {row.cols[col] ?? panelistDemoMap[row.panelist_id]?.[col] ?? '—'}
-                        </Table.Td>
-                      ))}
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </ScrollArea>
-          </Paper>
+      <Tabs value={subTab} onChange={setSubTab}>
+        <Tabs.List mb="sm">
+          <Tabs.Tab value="berry">Berry Results</Tabs.Tab>
+          <Tabs.Tab value="demo">Demographics</Tabs.Tab>
+        </Tabs.List>
 
-          <Group justify="space-between" align="center">
-            <Text size="sm" c="dimmed">
-              {totalPairs} panelist–sample pairs · page {page} of {totalPages}
-            </Text>
-            <Pagination value={page} onChange={setPage} total={totalPages} size="sm" />
-          </Group>
-        </Stack>
-      )}
+        <Tabs.Panel value="berry">
+          {resultsLoading && !pageData ? (
+            <Center p="xl"><Loader /></Center>
+          ) : berryRows.length === 0 ? (
+            <Paper withBorder p="xl" radius="md"><Center><Text c="dimmed">No berry responses for this date.</Text></Center></Paper>
+          ) : (
+            <Stack gap="sm">
+              <Paper withBorder radius="md" style={{ overflow: 'hidden', opacity: resultsLoading ? 0.6 : 1, transition: 'opacity 0.15s' }}>
+                <ScrollArea>
+                  <Table striped highlightOnHover withColumnBorders style={{ whiteSpace: 'nowrap' }}>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>Submitted (ET)</Table.Th>
+                        <Table.Th>Panelist</Table.Th>
+                        <Table.Th>Sample</Table.Th>
+                        {attributes.map((col) => <Table.Th key={col}>{col}</Table.Th>)}
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {berryRows.map((row) => (
+                        <Table.Tr key={`${row.panelist_id}||${row.sample_number}`}>
+                          <Table.Td style={{ color: 'var(--mantine-color-dimmed)', fontSize: '0.8rem' }}>{toET(row.submitted_at)}</Table.Td>
+                          <Table.Td>{row.panelist_id}</Table.Td>
+                          <Table.Td>{row.sample_number}</Table.Td>
+                          {attributes.map((col) => <Table.Td key={col}>{row.cols[col] ?? '—'}</Table.Td>)}
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </ScrollArea>
+              </Paper>
+              <Group justify="space-between" align="center">
+                <Text size="sm" c="dimmed">{totalPairs} panelist–sample pairs · page {page} of {totalPages}</Text>
+                <Pagination value={page} onChange={setPage} total={totalPages} size="sm" />
+              </Group>
+            </Stack>
+          )}
+        </Tabs.Panel>
+
+        <Tabs.Panel value="demo">
+          {resultsLoading && !pageData ? (
+            <Center p="xl"><Loader /></Center>
+          ) : demoRows.length === 0 ? (
+            <Paper withBorder p="xl" radius="md"><Center><Text c="dimmed">No demographic responses for this date.</Text></Center></Paper>
+          ) : (
+            <Paper withBorder radius="md" style={{ overflow: 'hidden', opacity: resultsLoading ? 0.6 : 1, transition: 'opacity 0.15s' }}>
+              <ScrollArea>
+                <Table striped highlightOnHover withColumnBorders style={{ whiteSpace: 'nowrap' }}>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Submitted (ET)</Table.Th>
+                      <Table.Th>Panelist</Table.Th>
+                      {demoAttributes.map((col) => <Table.Th key={col}>{col}</Table.Th>)}
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {demoRows.map((row) => (
+                      <Table.Tr key={row.panelist_id}>
+                        <Table.Td style={{ color: 'var(--mantine-color-dimmed)', fontSize: '0.8rem' }}>{toET(row.submitted_at)}</Table.Td>
+                        <Table.Td>{row.panelist_id}</Table.Td>
+                        {demoAttributes.map((col) => <Table.Td key={col}>{row.cols[col] ?? '—'}</Table.Td>)}
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </ScrollArea>
+            </Paper>
+          )}
+        </Tabs.Panel>
+      </Tabs>
     </Stack>
   )
 }
