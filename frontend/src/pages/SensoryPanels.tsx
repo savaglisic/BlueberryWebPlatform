@@ -17,6 +17,7 @@ import type { SensoryQuestion, QuestionType, SensorySample, SensoryResult, Senso
 import {
   listQuestions, getSensorySetup, updateSensorySetup, addQuestion, updateQuestion,
   deleteQuestion, reorderQuestions, getSensoryResultDates, getSensoryResults,
+  deleteBerryResult, deleteDemoResult,
   listQuestionSets, createQuestionSet, deleteQuestionSet, loadQuestionSet,
 } from '../api/sensory'
 
@@ -1290,10 +1291,45 @@ function downloadCsv(filename: string, headers: string[], csvRows: string[][]) {
 }
 
 function ResultsTab() {
+  const qc = useQueryClient()
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [subTab, setSubTab] = useState<string | null>('berry')
   const [page, setPage] = useState(1)
   const [downloading, setDownloading] = useState<'berry' | 'demo' | 'combined' | null>(null)
+
+  const handleDeleteBerry = (panelist_id: string, sample_number: string) => {
+    modals.openConfirmModal({
+      title: 'Delete berry result?',
+      children: (
+        <Text size="sm">
+          This will permanently delete all responses from panelist <strong>{panelist_id}</strong> for sample <strong>{sample_number}</strong>. This cannot be undone.
+        </Text>
+      ),
+      labels: { confirm: 'Delete', cancel: 'Cancel' },
+      confirmProps: { color: 'red' },
+      onConfirm: async () => {
+        await deleteBerryResult(panelist_id, sample_number, selectedDate!)
+        qc.invalidateQueries({ queryKey: ['sensory-results'] })
+      },
+    })
+  }
+
+  const handleDeleteDemo = (panelist_id: string) => {
+    modals.openConfirmModal({
+      title: 'Delete demographic responses?',
+      children: (
+        <Text size="sm">
+          This will permanently delete all demographic responses from panelist <strong>{panelist_id}</strong>. This cannot be undone.
+        </Text>
+      ),
+      labels: { confirm: 'Delete', cancel: 'Cancel' },
+      confirmProps: { color: 'red' },
+      onConfirm: async () => {
+        await deleteDemoResult(panelist_id, selectedDate!)
+        qc.invalidateQueries({ queryKey: ['sensory-results'] })
+      },
+    })
+  }
 
   const { data: dates = [], isLoading: datesLoading } = useQuery({
     queryKey: ['sensory-result-dates'],
@@ -1440,6 +1476,7 @@ function ResultsTab() {
                         <Table.Th>Sample</Table.Th>
                         <Table.Th>Berry</Table.Th>
                         {attributes.map((col) => <Table.Th key={col}>{col}</Table.Th>)}
+                        <Table.Th w={40} />
                       </Table.Tr>
                     </Table.Thead>
                     <Table.Tbody>
@@ -1450,6 +1487,11 @@ function ResultsTab() {
                           <Table.Td>{row.sample_number}</Table.Td>
                           <Table.Td c="dimmed">{sampleMap[row.sample_number] ?? '—'}</Table.Td>
                           {attributes.map((col) => <Table.Td key={col}>{row.cols[col] ?? '—'}</Table.Td>)}
+                          <Table.Td>
+                            <ActionIcon variant="subtle" color="red" size="sm" onClick={() => handleDeleteBerry(row.panelist_id, row.sample_number)}>
+                              <IconTrash size={13} />
+                            </ActionIcon>
+                          </Table.Td>
                         </Table.Tr>
                       ))}
                     </Table.Tbody>
@@ -1478,6 +1520,7 @@ function ResultsTab() {
                       <Table.Th>Submitted (ET)</Table.Th>
                       <Table.Th>Panelist</Table.Th>
                       {demoAttributes.map((col) => <Table.Th key={col}>{col}</Table.Th>)}
+                      <Table.Th w={40} />
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
@@ -1486,6 +1529,11 @@ function ResultsTab() {
                         <Table.Td style={{ color: 'var(--mantine-color-dimmed)', fontSize: '0.8rem' }}>{toET(row.submitted_at)}</Table.Td>
                         <Table.Td>{row.panelist_id}</Table.Td>
                         {demoAttributes.map((col) => <Table.Td key={col}>{row.cols[col] ?? '—'}</Table.Td>)}
+                        <Table.Td>
+                          <ActionIcon variant="subtle" color="red" size="sm" onClick={() => handleDeleteDemo(row.panelist_id)}>
+                            <IconTrash size={13} />
+                          </ActionIcon>
+                        </Table.Td>
                       </Table.Tr>
                     ))}
                   </Table.Tbody>

@@ -71,6 +71,12 @@ export interface SensoryResultsPage {
 export const getSensoryResultDates = () =>
   client.get('/sensory_result_dates').then<string[]>((r) => r.data)
 
+export const deleteBerryResult = (panelist_id: string, sample_number: string, date: string) =>
+  client.delete('/sensory_results/berry', { data: { panelist_id, sample_number, date } }).then((r) => r.data)
+
+export const deleteDemoResult = (panelist_id: string, date: string) =>
+  client.delete('/sensory_results/demographics', { data: { panelist_id, date } }).then((r) => r.data)
+
 export const getSensoryResults = (date: string, page: number, perPage = 50) =>
   client
     .get('/sensory_results', { params: { date, page, per_page: perPage } })

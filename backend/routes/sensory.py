@@ -300,6 +300,37 @@ def get_result_dates():
     return jsonify([row[0] for row in dates])
 
 
+@sensory_bp.route("/sensory_results/berry", methods=["DELETE"])
+def delete_berry_result():
+    panelist_id = request.json.get("panelist_id")
+    sample_number = request.json.get("sample_number")
+    date = request.json.get("date")
+    if not panelist_id or not sample_number or not date:
+        return jsonify({"error": "panelist_id, sample_number, and date are required"}), 400
+    SensoryResult.query.filter_by(
+        panelist_id=panelist_id,
+        sample_number=sample_number,
+        session_date=date,
+    ).delete()
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@sensory_bp.route("/sensory_results/demographics", methods=["DELETE"])
+def delete_demo_result():
+    panelist_id = request.json.get("panelist_id")
+    date = request.json.get("date")
+    if not panelist_id or not date:
+        return jsonify({"error": "panelist_id and date are required"}), 400
+    SensoryResult.query.filter_by(
+        panelist_id=panelist_id,
+        sample_number=None,
+        session_date=date,
+    ).delete()
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
 @sensory_bp.route("/sensory_demographic_questions", methods=["GET"])
 def demographic_questions():
     return jsonify(DEMOGRAPHIC_QUESTIONS)
