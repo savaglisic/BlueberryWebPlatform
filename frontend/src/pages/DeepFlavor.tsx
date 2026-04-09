@@ -201,6 +201,67 @@ function MultipleChoice({
   )
 }
 
+function SelectAll({
+  options,
+  value,
+  onChange,
+}: {
+  options: string[]
+  value: string
+  onChange: (v: string) => void
+}) {
+  const selected: string[] = value ? JSON.parse(value) : []
+  const toggle = (opt: string) => {
+    const next = selected.includes(opt) ? selected.filter((s) => s !== opt) : [...selected, opt]
+    onChange(JSON.stringify(next))
+  }
+  return (
+    <Stack gap="sm" style={{ width: '100%' }}>
+      {options.map((opt) => {
+        const active = selected.includes(opt)
+        return (
+          <UnstyledButton
+            key={opt}
+            onClick={() => toggle(opt)}
+            style={{
+              width: '100%',
+              padding: '18px 24px',
+              borderRadius: 14,
+              border: `2px solid ${active ? 'var(--mantine-color-blue-6)' : 'var(--mantine-color-default-border)'}`,
+              background: active ? 'var(--mantine-color-blue-light)' : 'transparent',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+            }}
+          >
+            <Box
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: 6,
+                border: `2px solid ${active ? 'var(--mantine-color-blue-6)' : 'var(--mantine-color-default-border)'}`,
+                background: active ? 'var(--mantine-color-blue-6)' : 'transparent',
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {active && <IconCheck size={13} color="white" stroke={3} />}
+            </Box>
+            <Text size="lg" fw={active ? 700 : 400} c={active ? 'blue' : undefined}>
+              {opt}
+            </Text>
+          </UnstyledButton>
+        )
+      })}
+    </Stack>
+  )
+}
+
 function TextResponse({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <Textarea
@@ -230,6 +291,10 @@ function QuestionInput({
       return <Rating9 value={value} onChange={onChange} />
     case 'slider_100':
       return <Slider100 value={value} onChange={onChange} />
+    case 'select_all':
+      if (question.options.length > 0)
+        return <SelectAll options={question.options} value={value} onChange={onChange} />
+      return <TextResponse value={value} onChange={onChange} />
     case 'multiple_choice':
     case 'demographic':
       if (question.demographic_key === 'age')
@@ -888,7 +953,7 @@ export function DeepFlavor() {
             Thank you for participating in the sensory panel.
           </Text>
           <Text c="dimmed" ta="center">
-            You may leave your cups on the table and return to your seat.
+            Please let a team member know you are finished.
           </Text>
         </Stack>
         <Button

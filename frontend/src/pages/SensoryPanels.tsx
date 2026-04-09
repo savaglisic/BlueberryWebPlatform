@@ -11,15 +11,21 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   IconPlus, IconTrash, IconEdit, IconArrowUp, IconArrowDown,
   IconVideo, IconVideoOff, IconFlask, IconTable, IconDownload,
+  IconDeviceFloppy, IconFolderOpen,
 } from '@tabler/icons-react'
-import type { SensoryQuestion, QuestionType, SensorySample, SensoryResult } from '../api/sensory'
-import { listQuestions, getSensorySetup, updateSensorySetup, addQuestion, updateQuestion, deleteQuestion, reorderQuestions, getSensoryResultDates, getSensoryResults } from '../api/sensory'
+import type { SensoryQuestion, QuestionType, SensorySample, SensoryResult, SensoryQuestionSetSummary } from '../api/sensory'
+import {
+  listQuestions, getSensorySetup, updateSensorySetup, addQuestion, updateQuestion,
+  deleteQuestion, reorderQuestions, getSensoryResultDates, getSensoryResults,
+  listQuestionSets, createQuestionSet, deleteQuestionSet, loadQuestionSet,
+} from '../api/sensory'
 
 const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   rating_9: 'Rating 1–9 (Dislike → Like)',
   slider_100: 'Slider 0–100 (Low → High)',
   text: 'Long-form Text Response',
-  multiple_choice: 'Custom Multiple Choice',
+  multiple_choice: 'Multiple Choice (pick one)',
+  select_all: 'Select All That Apply',
   instruction: 'Panelist Instruction',
   demographic: 'Demographic',
 }
@@ -29,9 +35,12 @@ const QUESTION_TYPE_COLORS: Record<QuestionType, string> = {
   slider_100: 'cyan',
   text: 'gray',
   multiple_choice: 'violet',
+  select_all: 'grape',
   instruction: 'orange',
   demographic: 'teal',
 }
+
+// ── Question banks ─────────────────────────────────────────────────────────────
 
 interface QuestionBankItem {
   key: string
@@ -86,13 +95,7 @@ const QUESTION_BANK: QuestionBankItem[] = [
     question_type: 'multiple_choice',
     attribute: 'Texture classification',
     wording: 'How would you classify the texture of this sample?',
-    options: [
-      'Mealy',
-      'Soft',
-      'Standard',
-      'Firm',
-      'Crispy',
-    ],
+    options: ['Mealy', 'Soft', 'Standard', 'Firm', 'Crispy'],
     capture_video: false,
   },
   {
@@ -178,7 +181,107 @@ const QUESTION_BANK: QuestionBankItem[] = [
   },
 ]
 
-// ── Add / Edit question modal ──────────────────────────────────────────────────
+interface DemoBankItem {
+  key: string
+  label: string
+  attribute: string
+  question_type: 'text' | 'multiple_choice'
+  wording: string
+  options: string[]
+}
+
+const DEMOGRAPHIC_BANK: DemoBankItem[] = [
+  {
+    key: 'gender',
+    label: 'Gender',
+    attribute: 'gender',
+    question_type: 'multiple_choice',
+    wording: 'Please indicate your gender.',
+    options: ['Male', 'Female', 'I prefer not to say'],
+  },
+  {
+    key: 'age',
+    label: 'Age',
+    attribute: 'age',
+    question_type: 'text',
+    wording: 'Please indicate your age.',
+    options: [],
+  },
+  {
+    key: 'ethnicity',
+    label: 'Ethnicity',
+    attribute: 'ethnicity',
+    question_type: 'multiple_choice',
+    wording: 'What is your ethnic background?',
+    options: ['Hispanic', 'Non-Hispanic'],
+  },
+  {
+    key: 'race',
+    label: 'Race',
+    attribute: 'race',
+    question_type: 'multiple_choice',
+    wording: 'Which of the following best describes you?',
+    options: [
+      'Asian/Pacific Islander',
+      'Black or African American',
+      'White or Caucasian',
+      'Native American/Alaska Native/Aleutian',
+      'Other',
+    ],
+  },
+  {
+    key: 'blueberry_frequency',
+    label: 'Blueberry frequency',
+    attribute: 'blueberry_frequency',
+    question_type: 'multiple_choice',
+    wording: 'How often do you eat fresh blueberries?',
+    options: [
+      'Once a day',
+      '2–3 times a week',
+      'Once a week',
+      '2–3 times a month',
+      'Once per month',
+      'Twice per year',
+      'Once per year',
+      'Never or almost never',
+    ],
+  },
+]
+
+// ── Shared options editor ──────────────────────────────────────────────────────
+
+function OptionsEditor({ options, onChange }: { options: string[]; onChange: (opts: string[]) => void }) {
+  return (
+    <Stack gap={4}>
+      <Text size="sm" fw={500}>Answer options</Text>
+      {options.map((opt, i) => (
+        <Group key={i} gap="xs">
+          <TextInput
+            style={{ flex: 1 }}
+            placeholder={`Option ${i + 1}`}
+            value={opt}
+            onChange={(e) => {
+              const next = [...options]
+              next[i] = e.target.value
+              onChange(next)
+            }}
+            size="sm"
+          />
+          <ActionIcon color="red" variant="subtle" size="sm"
+            onClick={() => onChange(options.filter((_, idx) => idx !== i))}>
+            <IconTrash size={14} />
+          </ActionIcon>
+        </Group>
+      ))}
+      <Button size="xs" variant="subtle" leftSection={<IconPlus size={12} />}
+        onClick={() => onChange([...options, ''])} w="fit-content">
+        Add option
+      </Button>
+    </Stack>
+  )
+}
+
+// ── Add / Edit live sample question modal ──────────────────────────────────────
 
 function QuestionFormModal({ existing, onClose }: { existing?: SensoryQuestion; onClose: () => void }) {
   const qc = useQueryClient()
@@ -200,7 +303,7 @@ function QuestionFormModal({ existing, onClose }: { existing?: SensoryQuestion; 
     setAttribute(item.attribute)
     setWording(item.wording)
     setCaptureVideo(item.capture_video)
-    setOptions(item.question_type === 'multiple_choice' ? item.options : [''])
+    setOptions(item.question_type === 'multiple_choice' || item.question_type === 'select_all' ? item.options : [''])
   }
 
   const handleSave = async () => {
@@ -219,7 +322,7 @@ function QuestionFormModal({ existing, onClose }: { existing?: SensoryQuestion; 
         attribute: isInstruction ? null : attribute.trim(),
         wording: wording.trim(),
         capture_video: isInstruction ? false : captureVideo,
-        options: type === 'multiple_choice' ? options.filter((o) => o.trim()) : [],
+        options: (type === 'multiple_choice' || type === 'select_all') ? options.filter((o) => o.trim()) : [],
       }
       if (existing) {
         await updateQuestion(existing.id, payload)
@@ -281,33 +384,8 @@ function QuestionFormModal({ existing, onClose }: { existing?: SensoryQuestion; 
         required
       />
 
-      {type === 'multiple_choice' && (
-        <Stack gap={4}>
-          <Text size="sm" fw={500}>Answer options</Text>
-          {options.map((opt, i) => (
-            <Group key={i} gap="xs">
-              <TextInput
-                style={{ flex: 1 }}
-                placeholder={`Option ${i + 1}`}
-                value={opt}
-                onChange={(e) => {
-                  const next = [...options]
-                  next[i] = e.target.value
-                  setOptions(next)
-                }}
-                size="sm"
-              />
-              <ActionIcon color="red" variant="subtle" size="sm"
-                onClick={() => setOptions(options.filter((_, idx) => idx !== i))}>
-                <IconTrash size={14} />
-              </ActionIcon>
-            </Group>
-          ))}
-          <Button size="xs" variant="subtle" leftSection={<IconPlus size={12} />}
-            onClick={() => setOptions([...options, ''])} w="fit-content">
-            Add option
-          </Button>
-        </Stack>
+      {(type === 'multiple_choice' || type === 'select_all') && (
+        <OptionsEditor options={options} onChange={setOptions} />
       )}
 
       {!isInstruction && (
@@ -329,12 +407,359 @@ function QuestionFormModal({ existing, onClose }: { existing?: SensoryQuestion; 
   )
 }
 
+// ── Add / Edit demographic question modal ──────────────────────────────────────
+
+function DemographicFormModal({ existing, onClose }: { existing?: SensoryQuestion; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [demoType, setDemoType] = useState<'text' | 'multiple_choice' | 'select_all'>(
+    existing
+      ? existing.question_type === 'select_all'
+        ? 'select_all'
+        : existing.options.length > 0
+          ? 'multiple_choice'
+          : 'text'
+      : 'multiple_choice',
+  )
+  const [attribute, setAttribute] = useState(existing?.attribute ?? existing?.demographic_key ?? '')
+  const [wording, setWording] = useState(existing?.wording ?? '')
+  const [options, setOptions] = useState<string[]>(existing?.options?.length ? existing.options : [''])
+  const [bankSelection, setBankSelection] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const applyBankItem = (itemKey: string | null) => {
+    setBankSelection(itemKey)
+    const item = DEMOGRAPHIC_BANK.find((entry) => entry.key === itemKey)
+    if (!item) return
+    setDemoType(item.question_type)
+    setAttribute(item.attribute)
+    setWording(item.wording)
+    setOptions(item.question_type === 'multiple_choice' || item.question_type === 'select_all' ? item.options : [''])
+  }
+
+  const handleSave = async () => {
+    if (!attribute.trim()) {
+      notifications.show({ message: 'Attribute label is required', color: 'red' })
+      return
+    }
+    if (!wording.trim()) {
+      notifications.show({ message: 'Question wording is required', color: 'red' })
+      return
+    }
+    setSaving(true)
+    try {
+      const payload = {
+        question_type: demoType as QuestionType,
+        attribute: attribute.trim(),
+        wording: wording.trim(),
+        capture_video: false,
+        options: (demoType === 'multiple_choice' || demoType === 'select_all') ? options.filter((o) => o.trim()) : [],
+        // Always set a demographic_key so the question is identified as demographic
+        demographic_key: existing?.demographic_key ?? (bankSelection || attribute.trim()),
+      }
+      if (existing) {
+        await updateQuestion(existing.id, payload)
+      } else {
+        await addQuestion(payload)
+      }
+      await qc.invalidateQueries({ queryKey: ['sensory-questions'] })
+      onClose()
+    } catch {
+      notifications.show({ message: 'Failed to save question', color: 'red' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Stack>
+      {!existing && (
+        <Select
+          label="Demographic bank"
+          placeholder="Load a standard demographic question"
+          description="Use a standard question as a starting point, or define your own."
+          data={DEMOGRAPHIC_BANK.map((item) => ({ value: item.key, label: item.label }))}
+          value={bankSelection}
+          onChange={applyBankItem}
+          searchable
+          clearable
+        />
+      )}
+
+      <Select
+        label="Format"
+        data={[
+          { value: 'text', label: 'Text input' },
+          { value: 'multiple_choice', label: 'Multiple choice (pick one)' },
+          { value: 'select_all', label: 'Select all that apply' },
+        ]}
+        value={demoType}
+        onChange={(v) => setDemoType(v as 'text' | 'multiple_choice' | 'select_all')}
+      />
+
+      <TextInput
+        label="Attribute label"
+        placeholder="e.g. gender, age, dietary_restriction"
+        description="Short identifier used in data exports"
+        value={attribute}
+        onChange={(e) => setAttribute(e.target.value)}
+        required
+      />
+
+      <Textarea
+        label="Question wording"
+        placeholder="e.g. Please indicate your age."
+        value={wording}
+        onChange={(e) => setWording(e.target.value)}
+        minRows={2}
+        required
+      />
+
+      {(demoType === 'multiple_choice' || demoType === 'select_all') && (
+        <OptionsEditor options={options} onChange={setOptions} />
+      )}
+
+      <Group justify="flex-end">
+        <Button variant="subtle" onClick={onClose}>Cancel</Button>
+        <Button onClick={handleSave} loading={saving} color="teal">
+          {existing ? 'Save Changes' : 'Add Question'}
+        </Button>
+      </Group>
+    </Stack>
+  )
+}
+
+// ── Question Sets panel ────────────────────────────────────────────────────────
+
+function QuestionSetsPanel() {
+  const qc = useQueryClient()
+  const [saveOpen, { open: openSave, close: closeSave }] = useDisclosure(false)
+  const [loadOpen, { open: openLoad, close: closeLoad }] = useDisclosure(false)
+  const [newSetName, setNewSetName] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [loadingId, setLoadingId] = useState<number | null>(null)
+  const [selectedSetId, setSelectedSetId] = useState<string | null>(null)
+
+  const { data: sets = [], isLoading } = useQuery({
+    queryKey: ['sensory-question-sets'],
+    queryFn: listQuestionSets,
+  })
+
+  const handleSave = async () => {
+    if (!newSetName.trim()) {
+      notifications.show({ message: 'Name is required', color: 'red' })
+      return
+    }
+    setSaving(true)
+    try {
+      await createQuestionSet(newSetName.trim())
+      await qc.invalidateQueries({ queryKey: ['sensory-question-sets'] })
+      setNewSetName('')
+      closeSave()
+      notifications.show({ message: 'Question set saved', color: 'green' })
+    } catch {
+      notifications.show({ message: 'Failed to save question set', color: 'red' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleLoad = async () => {
+    const id = selectedSetId ? Number(selectedSetId) : null
+    if (!id) return
+    const set = sets.find((s) => s.id === id)
+    modals.openConfirmModal({
+      title: 'Load question set',
+      children: (
+        <Text size="sm">
+          Loading <strong>{set?.name}</strong> will replace all current demographic and sample questions.
+          This cannot be undone.
+        </Text>
+      ),
+      labels: { confirm: 'Load', cancel: 'Cancel' },
+      confirmProps: { color: 'indigo' },
+      onConfirm: async () => {
+        setLoadingId(id)
+        try {
+          await loadQuestionSet(id)
+          await qc.invalidateQueries({ queryKey: ['sensory-questions'] })
+          closeLoad()
+          setSelectedSetId(null)
+          notifications.show({ message: `Loaded "${set?.name}"`, color: 'green' })
+        } catch {
+          notifications.show({ message: 'Failed to load question set', color: 'red' })
+        } finally {
+          setLoadingId(null)
+        }
+      },
+    })
+  }
+
+  const handleDelete = (set: SensoryQuestionSetSummary) => {
+    modals.openConfirmModal({
+      title: 'Delete question set',
+      children: <Text size="sm">Delete "{set.name}"? This cannot be undone.</Text>,
+      labels: { confirm: 'Delete', cancel: 'Cancel' },
+      confirmProps: { color: 'red' },
+      onConfirm: async () => {
+        try {
+          await deleteQuestionSet(set.id)
+          await qc.invalidateQueries({ queryKey: ['sensory-question-sets'] })
+        } catch {
+          notifications.show({ message: 'Delete failed', color: 'red' })
+        }
+      },
+    })
+  }
+
+  return (
+    <>
+      <Paper withBorder p="md" radius="md">
+        <Stack gap="sm">
+          <Group justify="space-between" align="flex-start">
+            <Stack gap={2}>
+              <Text fw={600} size="sm">Question Sets</Text>
+              <Text size="xs" c="dimmed">
+                Save the current demographic + sample questions as a named preset. Load a preset to replace the active question list entirely.
+              </Text>
+            </Stack>
+            <Group gap="xs">
+              <Button size="sm" variant="default" leftSection={<IconFolderOpen size={14} />}
+                onClick={openLoad} disabled={sets.length === 0}>
+                Load set
+              </Button>
+              <Button size="sm" color="indigo" leftSection={<IconDeviceFloppy size={14} />}
+                onClick={openSave}>
+                Save as set
+              </Button>
+            </Group>
+          </Group>
+
+          {isLoading ? (
+            <Center py="sm"><Loader size="sm" /></Center>
+          ) : sets.length === 0 ? (
+            <Text size="sm" c="dimmed">No saved question sets yet.</Text>
+          ) : (
+            <Table withTableBorder withColumnBorders>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Name</Table.Th>
+                  <Table.Th w={120}>Questions</Table.Th>
+                  <Table.Th w={160}>Saved</Table.Th>
+                  <Table.Th w={80} />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {sets.map((set) => (
+                  <Table.Tr key={set.id}>
+                    <Table.Td><Text size="sm" fw={500}>{set.name}</Text></Table.Td>
+                    <Table.Td><Text size="sm" c="dimmed">{set.question_count}</Text></Table.Td>
+                    <Table.Td>
+                      <Text size="xs" c="dimmed">
+                        {new Date(set.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4} wrap="nowrap">
+                        <Button
+                          size="compact-xs"
+                          variant="subtle"
+                          loading={loadingId === set.id}
+                          onClick={() => {
+                            setSelectedSetId(String(set.id))
+                            modals.openConfirmModal({
+                              title: 'Load question set',
+                              children: (
+                                <Text size="sm">
+                                  Loading <strong>{set.name}</strong> will replace all current demographic and sample questions.
+                                  This cannot be undone.
+                                </Text>
+                              ),
+                              labels: { confirm: 'Load', cancel: 'Cancel' },
+                              confirmProps: { color: 'indigo' },
+                              onConfirm: async () => {
+                                setLoadingId(set.id)
+                                try {
+                                  await loadQuestionSet(set.id)
+                                  await qc.invalidateQueries({ queryKey: ['sensory-questions'] })
+                                  notifications.show({ message: `Loaded "${set.name}"`, color: 'green' })
+                                } catch {
+                                  notifications.show({ message: 'Failed to load question set', color: 'red' })
+                                } finally {
+                                  setLoadingId(null)
+                                }
+                              },
+                            })
+                          }}
+                        >
+                          Load
+                        </Button>
+                        <ActionIcon size="sm" variant="subtle" color="red" onClick={() => handleDelete(set)}>
+                          <IconTrash size={13} />
+                        </ActionIcon>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          )}
+        </Stack>
+      </Paper>
+
+      {/* Save modal */}
+      <Modal opened={saveOpen} onClose={closeSave} title="Save question set" size="sm">
+        <Stack>
+          <TextInput
+            label="Name"
+            placeholder="e.g. Standard Blueberry Panel 2026"
+            value={newSetName}
+            onChange={(e) => setNewSetName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSave() }}
+            autoFocus
+          />
+          <Text size="xs" c="dimmed">
+            Saves a snapshot of all current demographic and sample questions.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={closeSave}>Cancel</Button>
+            <Button color="indigo" loading={saving} onClick={handleSave}>Save</Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Load modal (kept for the top-level Load set button) */}
+      <Modal opened={loadOpen} onClose={closeLoad} title="Load question set" size="sm">
+        <Stack>
+          <Select
+            label="Select a saved set"
+            data={sets.map((s) => ({ value: String(s.id), label: `${s.name} (${s.question_count} questions)` }))}
+            value={selectedSetId}
+            onChange={setSelectedSetId}
+            placeholder="Choose a question set"
+          />
+          <Text size="xs" c="dimmed">
+            This will replace all current demographic and sample questions with the saved snapshot.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={closeLoad}>Cancel</Button>
+            <Button color="indigo" disabled={!selectedSetId} loading={loadingId !== null} onClick={handleLoad}>
+              Load
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </>
+  )
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export function SensoryPanels() {
   const qc = useQueryClient()
   const [addOpen, { open: openAdd, close: closeAdd }] = useDisclosure(false)
+  const [addDemoOpen, { open: openAddDemo, close: closeAddDemo }] = useDisclosure(false)
   const [editQuestion, setEditQuestion] = useState<SensoryQuestion | null>(null)
+  const [editDemoQuestion, setEditDemoQuestion] = useState<SensoryQuestion | null>(null)
   const [draftSampleCount, setDraftSampleCount] = useState(5)
   const [draftSamples, setDraftSamples] = useState<Array<Partial<SensorySample>>>([])
   const [isSavingSetup, setIsSavingSetup] = useState(false)
@@ -349,8 +774,8 @@ export function SensoryPanels() {
     queryFn: listQuestions,
   })
 
-  const demographicQuestions = questions.filter((q) => q.question_type === 'demographic')
-  const experimentalQuestions = questions.filter((q) => q.question_type !== 'demographic')
+  const demographicQuestions = questions.filter((q) => q.demographic_key !== null)
+  const experimentalQuestions = questions.filter((q) => q.demographic_key === null)
 
   useEffect(() => {
     if (!setup) return
@@ -444,14 +869,20 @@ export function SensoryPanels() {
     })
   }
 
-  const handleMove = async (list: SensoryQuestion[], idx: number, dir: 1 | -1) => {
+  const handleMove = async (list: SensoryQuestion[], idx: number, dir: 1 | -1, isDemographic: boolean) => {
     const toIdx = idx + dir
     if (toIdx < 0 || toIdx >= list.length) return
     const reordered = [...list]
     ;[reordered[idx], reordered[toIdx]] = [reordered[toIdx], reordered[idx]]
-    const demoMax = demographicQuestions.length
-    const globalPayload = reordered.map((q, i) => ({ id: q.id, order_index: demoMax + i }))
-    await reorderQuestions(globalPayload)
+    if (isDemographic) {
+      // Demographics always come first; reindex from 0
+      const payload = reordered.map((q, i) => ({ id: q.id, order_index: i }))
+      await reorderQuestions(payload)
+    } else {
+      const demoMax = demographicQuestions.length
+      const payload = reordered.map((q, i) => ({ id: q.id, order_index: demoMax + i }))
+      await reorderQuestions(payload)
+    }
     qc.invalidateQueries({ queryKey: ['sensory-questions'] })
   }
 
@@ -513,226 +944,291 @@ export function SensoryPanels() {
         </Tabs.Panel>
 
         <Tabs.Panel value="questions">
-      <Text size="sm" c="dimmed">
-        Define the live question set used right now. Results are stored separately and keep their own snapshot of each question, so you can change this list at any time without affecting past data.
-      </Text>
+          <Stack>
+            <Text size="sm" c="dimmed">
+              Define the live question set used right now. Results are stored separately and keep their own snapshot of each question, so you can change this list at any time without affecting past data.
+            </Text>
 
-      <Paper withBorder p="md" radius="md">
-        <Stack gap="sm">
-          <Group justify="space-between" align="flex-start">
-            <Stack gap={2}>
-              <Text fw={600} size="sm">Live Sample Setup</Text>
-              <Text size="xs" c="dimmed">Store the current masked sample numbers and the current per-panelist sample count without tying them to a named panel.</Text>
-            </Stack>
-            <Group gap="xs">
-              <Button size="sm" leftSection={<IconPlus size={14} />} onClick={handleAddSampleRow}>
-                Add sample
-              </Button>
-              <Button variant="default" onClick={handleResetSetup} disabled={!hasSetupChanges || isSavingSetup}>
-                Reset
-              </Button>
-              <Button color="indigo" onClick={handleSaveSetup} loading={isSavingSetup} disabled={!hasSetupChanges || duplicateSampleNumbers.size > 0}>
-                Save
-              </Button>
-            </Group>
-          </Group>
+            {/* Sample setup */}
+            <Paper withBorder p="md" radius="md">
+              <Stack gap="sm">
+                <Group justify="space-between" align="flex-start">
+                  <Stack gap={2}>
+                    <Text fw={600} size="sm">Live Sample Setup</Text>
+                    <Text size="xs" c="dimmed">Store the current masked sample numbers and the current per-panelist sample count without tying them to a named panel.</Text>
+                  </Stack>
+                  <Group gap="xs">
+                    <Button size="sm" leftSection={<IconPlus size={14} />} onClick={handleAddSampleRow}>
+                      Add sample
+                    </Button>
+                    <Button variant="default" onClick={handleResetSetup} disabled={!hasSetupChanges || isSavingSetup}>
+                      Reset
+                    </Button>
+                    <Button color="indigo" onClick={handleSaveSetup} loading={isSavingSetup} disabled={!hasSetupChanges || duplicateSampleNumbers.size > 0}>
+                      Save
+                    </Button>
+                  </Group>
+                </Group>
 
-          <NumberInput
-            label="Samples per panelist"
-            description="Current target number of masked samples each panelist should receive."
-            min={1}
-            value={draftSampleCount}
-            onChange={handleUpdateSampleCount}
-            w={240}
-          />
+                <NumberInput
+                  label="Samples per panelist"
+                  description="Current target number of masked samples each panelist should receive."
+                  min={1}
+                  value={draftSampleCount}
+                  onChange={handleUpdateSampleCount}
+                  w={240}
+                />
 
-          {draftSamples.length === 0 ? (
-            <Text size="sm" c="dimmed">No masked sample numbers defined yet.</Text>
-          ) : (
-            <Table withTableBorder withColumnBorders>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th w={48}>#</Table.Th>
-                  <Table.Th>Masked sample number</Table.Th>
-                  <Table.Th>Real mapping (optional)</Table.Th>
-                  <Table.Th w={52} />
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {draftSamples.map((sample, index) => (
-                  <Table.Tr key={sample.id ?? `${sample.sample_number}-${index}`}>
-                    <Table.Td>
-                      <Text size="xs" c="dimmed" fw={600}>{index + 1}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <TextInput
-                        key={`masked-${sample.id ?? index}-${sample.sample_number}`}
-                        placeholder="e.g. 101"
-                        onBlur={(e) => handleUpdateSampleRow(index, { sample_number: e.currentTarget.value })}
-                        defaultValue={sample.sample_number}
-                        error={duplicateSampleNumbers.has((sample.sample_number ?? '').trim()) ? 'Duplicate' : undefined}
-                      />
-                    </Table.Td>
-                    <Table.Td>
-                      <TextInput
-                        key={`real-${sample.id ?? index}-${sample.real_identifier ?? ''}`}
-                        placeholder="e.g. genotype, barcode, internal id"
-                        onBlur={(e) => handleUpdateSampleRow(index, { real_identifier: e.currentTarget.value })}
-                        defaultValue={sample.real_identifier ?? ''}
-                      />
-                    </Table.Td>
-                    <Table.Td>
-                      <ActionIcon size="sm" variant="subtle" color="red" onClick={() => handleDeleteSampleRow(index)}>
-                        <IconTrash size={13} />
-                      </ActionIcon>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          )}
-        </Stack>
-      </Paper>
-
-      {/* Demographics */}
-      <Paper withBorder p="md" radius="md">
-        <Stack gap="sm">
-          <Stack gap={2}>
-            <Text fw={600} size="sm">Panelist Background & Demographics</Text>
-            <Text size="xs" c="dimmed">Collected once per panelist before tasting. These default on automatically when new demographic questions are added.</Text>
-          </Stack>
-          <Table withTableBorder>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Question</Table.Th>
-                <Table.Th w={140}>Format</Table.Th>
-                <Table.Th w={80}>Enabled</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {demographicQuestions.map((q) => (
-                <Table.Tr key={q.id} style={{ opacity: q.enabled ? 1 : 0.45 }}>
-                  <Table.Td><Text size="sm">{q.wording}</Text></Table.Td>
-                  <Table.Td>
-                    <Badge size="xs" variant="light" color="teal">
-                      {q.options.length > 0 ? 'Multiple choice' : 'Text input'}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <Switch size="xs" checked={q.enabled} onChange={() => handleToggle(q)} />
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Stack>
-      </Paper>
-
-      {/* Experimental questions */}
-      <Paper withBorder p="md" radius="md">
-        <Stack gap="sm">
-          <Group justify="space-between">
-            <Stack gap={2}>
-              <Text fw={600} size="sm">Live Sample Questions</Text>
-              <Text size="xs" c="dimmed">Asked per sample during tasting. This is the active question list; use arrows to reorder.</Text>
-            </Stack>
-            <Button size="sm" leftSection={<IconPlus size={14} />} color="indigo" onClick={openAdd}>
-              Add question
-            </Button>
-          </Group>
-
-          {experimentalQuestions.length === 0 ? (
-            <Center py="lg">
-              <Stack align="center" gap="xs">
-                <ThemeIcon size="xl" variant="light" color="indigo"><IconFlask size={24} /></ThemeIcon>
-                <Text size="sm" c="dimmed">No questions yet. Add one to get started.</Text>
-              </Stack>
-            </Center>
-          ) : (
-            <ScrollArea>
-              <Table withTableBorder withColumnBorders>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th w={32}>#</Table.Th>
-                    <Table.Th w={240}>Type</Table.Th>
-                    <Table.Th w={150}>Attribute</Table.Th>
-                    <Table.Th>Wording</Table.Th>
-                    <Table.Th w={52}>Video</Table.Th>
-                    <Table.Th w={72}>Enabled</Table.Th>
-                    <Table.Th w={110} />
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {experimentalQuestions.map((q, i) => (
-                    <Table.Tr key={q.id} style={{ opacity: q.enabled ? 1 : 0.45 }}>
-                      <Table.Td>
-                        <Text size="xs" c="dimmed" fw={600}>{i + 1}</Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Badge size="xs" color={QUESTION_TYPE_COLORS[q.question_type]} variant="light">
-                          {QUESTION_TYPE_LABELS[q.question_type]}
-                        </Badge>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm" fw={600}>{q.attribute ?? '—'}</Text>
-                      </Table.Td>
-                      <Table.Td style={{ maxWidth: 320 }}>
-                        <Text size="xs" c="dimmed" lineClamp={2}>{q.wording}</Text>
-                      </Table.Td>
-                      <Table.Td>
-                        {q.question_type !== 'instruction' && (
-                          <Tooltip label={q.capture_video ? 'Video on' : 'Video off'}>
-                            <ActionIcon size="sm" variant="subtle"
-                              color={q.capture_video ? 'indigo' : 'gray'}
-                              onClick={() => handleToggleVideo(q)}>
-                              {q.capture_video ? <IconVideo size={14} /> : <IconVideoOff size={14} />}
+                {draftSamples.length === 0 ? (
+                  <Text size="sm" c="dimmed">No masked sample numbers defined yet.</Text>
+                ) : (
+                  <Table withTableBorder withColumnBorders>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th w={48}>#</Table.Th>
+                        <Table.Th>Masked sample number</Table.Th>
+                        <Table.Th>Real mapping (optional)</Table.Th>
+                        <Table.Th w={52} />
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {draftSamples.map((sample, index) => (
+                        <Table.Tr key={sample.id ?? `${sample.sample_number}-${index}`}>
+                          <Table.Td>
+                            <Text size="xs" c="dimmed" fw={600}>{index + 1}</Text>
+                          </Table.Td>
+                          <Table.Td>
+                            <TextInput
+                              key={`masked-${sample.id ?? index}-${sample.sample_number}`}
+                              placeholder="e.g. 101"
+                              onBlur={(e) => handleUpdateSampleRow(index, { sample_number: e.currentTarget.value })}
+                              defaultValue={sample.sample_number}
+                              error={duplicateSampleNumbers.has((sample.sample_number ?? '').trim()) ? 'Duplicate' : undefined}
+                            />
+                          </Table.Td>
+                          <Table.Td>
+                            <TextInput
+                              key={`real-${sample.id ?? index}-${sample.real_identifier ?? ''}`}
+                              placeholder="e.g. genotype, barcode, internal id"
+                              onBlur={(e) => handleUpdateSampleRow(index, { real_identifier: e.currentTarget.value })}
+                              defaultValue={sample.real_identifier ?? ''}
+                            />
+                          </Table.Td>
+                          <Table.Td>
+                            <ActionIcon size="sm" variant="subtle" color="red" onClick={() => handleDeleteSampleRow(index)}>
+                              <IconTrash size={13} />
                             </ActionIcon>
-                          </Tooltip>
-                        )}
-                      </Table.Td>
-                      <Table.Td>
-                        <Switch size="xs" checked={q.enabled} onChange={() => handleToggle(q)} />
-                      </Table.Td>
-                      <Table.Td>
-                        <Group gap={2} wrap="nowrap">
-                          <ActionIcon size="sm" variant="subtle" disabled={i === 0}
-                            onClick={() => handleMove(experimentalQuestions, i, -1)}>
-                            <IconArrowUp size={13} />
-                          </ActionIcon>
-                          <ActionIcon size="sm" variant="subtle" disabled={i === experimentalQuestions.length - 1}
-                            onClick={() => handleMove(experimentalQuestions, i, 1)}>
-                            <IconArrowDown size={13} />
-                          </ActionIcon>
-                          <ActionIcon size="sm" variant="subtle"
-                            onClick={() => setEditQuestion(q)}>
-                            <IconEdit size={13} />
-                          </ActionIcon>
-                          <ActionIcon size="sm" variant="subtle" color="red"
-                            onClick={() => handleDelete(q)}>
-                            <IconTrash size={13} />
-                          </ActionIcon>
-                        </Group>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </ScrollArea>
-          )}
-        </Stack>
-      </Paper>
+                          </Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                )}
+              </Stack>
+            </Paper>
 
-      <Modal opened={addOpen} onClose={closeAdd} title="Add question" size="lg">
-        <QuestionFormModal onClose={closeAdd} />
-      </Modal>
+            {/* Demographics */}
+            <Paper withBorder p="md" radius="md">
+              <Stack gap="sm">
+                <Group justify="space-between" align="flex-start">
+                  <Stack gap={2}>
+                    <Text fw={600} size="sm">Panelist Background & Demographics</Text>
+                    <Text size="xs" c="dimmed">Collected once per panelist before tasting.</Text>
+                  </Stack>
+                  <Button size="sm" leftSection={<IconPlus size={14} />} color="teal" onClick={openAddDemo}>
+                    Add question
+                  </Button>
+                </Group>
 
-      <Modal opened={!!editQuestion} onClose={() => setEditQuestion(null)}
-        title={`Edit — ${editQuestion?.attribute || 'Question'}`} size="lg">
-        {editQuestion && (
-          <QuestionFormModal existing={editQuestion} onClose={() => setEditQuestion(null)} />
-        )}
-      </Modal>
+                {demographicQuestions.length === 0 ? (
+                  <Center py="lg">
+                    <Stack align="center" gap="xs">
+                      <ThemeIcon size="xl" variant="light" color="teal"><IconFlask size={24} /></ThemeIcon>
+                      <Text size="sm" c="dimmed">No demographic questions yet. Add one to get started.</Text>
+                    </Stack>
+                  </Center>
+                ) : (
+                  <ScrollArea>
+                    <Table withTableBorder withColumnBorders>
+                      <Table.Thead>
+                        <Table.Tr>
+                          <Table.Th w={32}>#</Table.Th>
+                          <Table.Th w={120}>Format</Table.Th>
+                          <Table.Th w={130}>Attribute</Table.Th>
+                          <Table.Th>Wording</Table.Th>
+                          <Table.Th w={72}>Enabled</Table.Th>
+                          <Table.Th w={110} />
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {demographicQuestions.map((q, i) => (
+                          <Table.Tr key={q.id} style={{ opacity: q.enabled ? 1 : 0.45 }}>
+                            <Table.Td>
+                              <Text size="xs" c="dimmed" fw={600}>{i + 1}</Text>
+                            </Table.Td>
+                            <Table.Td>
+                              <Badge size="xs" variant="light" color={q.question_type === 'select_all' ? 'grape' : 'teal'}>
+                                {q.question_type === 'select_all' ? 'Select all' : q.options.length > 0 ? 'Multiple choice' : 'Text input'}
+                              </Badge>
+                            </Table.Td>
+                            <Table.Td>
+                              <Text size="sm" fw={600}>{q.attribute ?? q.demographic_key ?? '—'}</Text>
+                            </Table.Td>
+                            <Table.Td style={{ maxWidth: 320 }}>
+                              <Text size="xs" c="dimmed" lineClamp={2}>{q.wording}</Text>
+                            </Table.Td>
+                            <Table.Td>
+                              <Switch size="xs" checked={q.enabled} onChange={() => handleToggle(q)} />
+                            </Table.Td>
+                            <Table.Td>
+                              <Group gap={2} wrap="nowrap">
+                                <ActionIcon size="sm" variant="subtle" disabled={i === 0}
+                                  onClick={() => handleMove(demographicQuestions, i, -1, true)}>
+                                  <IconArrowUp size={13} />
+                                </ActionIcon>
+                                <ActionIcon size="sm" variant="subtle" disabled={i === demographicQuestions.length - 1}
+                                  onClick={() => handleMove(demographicQuestions, i, 1, true)}>
+                                  <IconArrowDown size={13} />
+                                </ActionIcon>
+                                <ActionIcon size="sm" variant="subtle"
+                                  onClick={() => setEditDemoQuestion(q)}>
+                                  <IconEdit size={13} />
+                                </ActionIcon>
+                                <ActionIcon size="sm" variant="subtle" color="red"
+                                  onClick={() => handleDelete(q)}>
+                                  <IconTrash size={13} />
+                                </ActionIcon>
+                              </Group>
+                            </Table.Td>
+                          </Table.Tr>
+                        ))}
+                      </Table.Tbody>
+                    </Table>
+                  </ScrollArea>
+                )}
+              </Stack>
+            </Paper>
 
+            {/* Experimental questions */}
+            <Paper withBorder p="md" radius="md">
+              <Stack gap="sm">
+                <Group justify="space-between">
+                  <Stack gap={2}>
+                    <Text fw={600} size="sm">Live Sample Questions</Text>
+                    <Text size="xs" c="dimmed">Asked per sample during tasting. This is the active question list; use arrows to reorder.</Text>
+                  </Stack>
+                  <Button size="sm" leftSection={<IconPlus size={14} />} color="indigo" onClick={openAdd}>
+                    Add question
+                  </Button>
+                </Group>
+
+                {experimentalQuestions.length === 0 ? (
+                  <Center py="lg">
+                    <Stack align="center" gap="xs">
+                      <ThemeIcon size="xl" variant="light" color="indigo"><IconFlask size={24} /></ThemeIcon>
+                      <Text size="sm" c="dimmed">No questions yet. Add one to get started.</Text>
+                    </Stack>
+                  </Center>
+                ) : (
+                  <ScrollArea>
+                    <Table withTableBorder withColumnBorders>
+                      <Table.Thead>
+                        <Table.Tr>
+                          <Table.Th w={32}>#</Table.Th>
+                          <Table.Th w={240}>Type</Table.Th>
+                          <Table.Th w={150}>Attribute</Table.Th>
+                          <Table.Th>Wording</Table.Th>
+                          <Table.Th w={52}>Video</Table.Th>
+                          <Table.Th w={72}>Enabled</Table.Th>
+                          <Table.Th w={110} />
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {experimentalQuestions.map((q, i) => (
+                          <Table.Tr key={q.id} style={{ opacity: q.enabled ? 1 : 0.45 }}>
+                            <Table.Td>
+                              <Text size="xs" c="dimmed" fw={600}>{i + 1}</Text>
+                            </Table.Td>
+                            <Table.Td>
+                              <Badge size="xs" color={QUESTION_TYPE_COLORS[q.question_type]} variant="light">
+                                {QUESTION_TYPE_LABELS[q.question_type]}
+                              </Badge>
+                            </Table.Td>
+                            <Table.Td>
+                              <Text size="sm" fw={600}>{q.attribute ?? '—'}</Text>
+                            </Table.Td>
+                            <Table.Td style={{ maxWidth: 320 }}>
+                              <Text size="xs" c="dimmed" lineClamp={2}>{q.wording}</Text>
+                            </Table.Td>
+                            <Table.Td>
+                              {q.question_type !== 'instruction' && (
+                                <Tooltip label={q.capture_video ? 'Video on' : 'Video off'}>
+                                  <ActionIcon size="sm" variant="subtle"
+                                    color={q.capture_video ? 'indigo' : 'gray'}
+                                    onClick={() => handleToggleVideo(q)}>
+                                    {q.capture_video ? <IconVideo size={14} /> : <IconVideoOff size={14} />}
+                                  </ActionIcon>
+                                </Tooltip>
+                              )}
+                            </Table.Td>
+                            <Table.Td>
+                              <Switch size="xs" checked={q.enabled} onChange={() => handleToggle(q)} />
+                            </Table.Td>
+                            <Table.Td>
+                              <Group gap={2} wrap="nowrap">
+                                <ActionIcon size="sm" variant="subtle" disabled={i === 0}
+                                  onClick={() => handleMove(experimentalQuestions, i, -1, false)}>
+                                  <IconArrowUp size={13} />
+                                </ActionIcon>
+                                <ActionIcon size="sm" variant="subtle" disabled={i === experimentalQuestions.length - 1}
+                                  onClick={() => handleMove(experimentalQuestions, i, 1, false)}>
+                                  <IconArrowDown size={13} />
+                                </ActionIcon>
+                                <ActionIcon size="sm" variant="subtle"
+                                  onClick={() => setEditQuestion(q)}>
+                                  <IconEdit size={13} />
+                                </ActionIcon>
+                                <ActionIcon size="sm" variant="subtle" color="red"
+                                  onClick={() => handleDelete(q)}>
+                                  <IconTrash size={13} />
+                                </ActionIcon>
+                              </Group>
+                            </Table.Td>
+                          </Table.Tr>
+                        ))}
+                      </Table.Tbody>
+                    </Table>
+                  </ScrollArea>
+                )}
+              </Stack>
+            </Paper>
+
+            {/* Question sets */}
+            <QuestionSetsPanel />
+
+            {/* Modals */}
+            <Modal opened={addOpen} onClose={closeAdd} title="Add sample question" size="lg">
+              <QuestionFormModal onClose={closeAdd} />
+            </Modal>
+
+            <Modal opened={!!editQuestion} onClose={() => setEditQuestion(null)}
+              title={`Edit — ${editQuestion?.attribute || 'Question'}`} size="lg">
+              {editQuestion && (
+                <QuestionFormModal existing={editQuestion} onClose={() => setEditQuestion(null)} />
+              )}
+            </Modal>
+
+            <Modal opened={addDemoOpen} onClose={closeAddDemo} title="Add demographic question" size="lg">
+              <DemographicFormModal onClose={closeAddDemo} />
+            </Modal>
+
+            <Modal opened={!!editDemoQuestion} onClose={() => setEditDemoQuestion(null)}
+              title={`Edit — ${editDemoQuestion?.attribute ?? editDemoQuestion?.demographic_key ?? 'Demographic question'}`} size="lg">
+              {editDemoQuestion && (
+                <DemographicFormModal existing={editDemoQuestion} onClose={() => setEditDemoQuestion(null)} />
+              )}
+            </Modal>
+          </Stack>
         </Tabs.Panel>
       </Tabs>
     </Stack>
@@ -794,14 +1290,12 @@ function ResultsTab() {
     if (dates.length > 0 && !selectedDate) setSelectedDate(dates[0])
   }, [dates, selectedDate])
 
-  // Reset to page 1 when date changes
   useEffect(() => { setPage(1) }, [selectedDate])
 
   const handleDownloadCsv = async () => {
     if (!selectedDate) return
     setDownloading(true)
     try {
-      // Fetch all pages for the selected date
       const first = await getSensoryResults(selectedDate, 1, 10000)
       const allResults = first.results
       const { rows, allCols, demoAttributes, attributes, panelistDemoMap } = pivotResults(allResults)
@@ -822,7 +1316,6 @@ function ResultsTab() {
       a.download = `panel_results_${selectedDate}.csv`
       a.click()
       URL.revokeObjectURL(url)
-      // Suppress allCols warning
       void allCols
     } finally {
       setDownloading(false)

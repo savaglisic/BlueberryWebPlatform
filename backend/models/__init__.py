@@ -2,7 +2,7 @@ from .user import User, EmailWhitelist
 from .plant import PlantData, Genotype
 from .analytics import HistoricalRank, HistoricalYield, HistoricalScore, HistoricalFruitQuality
 from .config import OptionConfig, APIKey
-from .sensory import SensoryQuestion, SensorySetup, SensorySample, SensoryResult, Panelist, DEMOGRAPHIC_QUESTIONS
+from .sensory import SensoryQuestion, SensorySetup, SensorySample, SensoryResult, SensoryQuestionSet, Panelist, DEMOGRAPHIC_QUESTIONS
 
 __all__ = [
     "User",
@@ -21,4 +21,5 @@ __all__ = [
     "SensoryResult",
     "Panelist",
     "DEMOGRAPHIC_QUESTIONS",
+    "SensoryQuestionSet",
 ]

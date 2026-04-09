@@ -1,6 +1,6 @@
 import client from './client'
 
-export type QuestionType = 'rating_9' | 'slider_100' | 'text' | 'multiple_choice' | 'instruction' | 'demographic'
+export type QuestionType = 'rating_9' | 'slider_100' | 'text' | 'multiple_choice' | 'select_all' | 'instruction' | 'demographic'
 
 export interface SensoryQuestion {
   id: number
@@ -75,3 +75,22 @@ export const getSensoryResults = (date: string, page: number, perPage = 50) =>
   client
     .get('/sensory_results', { params: { date, page, per_page: perPage } })
     .then<SensoryResultsPage>((r) => r.data)
+
+export interface SensoryQuestionSetSummary {
+  id: number
+  name: string
+  question_count: number
+  created_at: string
+}
+
+export const listQuestionSets = () =>
+  client.get('/sensory_question_sets').then<SensoryQuestionSetSummary[]>((r) => r.data)
+
+export const createQuestionSet = (name: string) =>
+  client.post('/sensory_question_sets', { name }).then<SensoryQuestionSetSummary>((r) => r.data)
+
+export const deleteQuestionSet = (id: number) =>
+  client.delete(`/sensory_question_sets/${id}`).then((r) => r.data)
+
+export const loadQuestionSet = (id: number) =>
+  client.post(`/sensory_question_sets/${id}/load`).then<SensoryQuestion[]>((r) => r.data)

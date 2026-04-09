@@ -1,7 +1,9 @@
+import json
+
 from flask import Blueprint, request, jsonify
 from sqlalchemy import inspect
 from extensions import db
-from models import SensoryQuestion, SensorySetup, SensorySample, SensoryResult, DEMOGRAPHIC_QUESTIONS
+from models import SensoryQuestion, SensorySetup, SensorySample, SensoryResult, SensoryQuestionSet, DEMOGRAPHIC_QUESTIONS
 
 sensory_bp = Blueprint("sensory", __name__)
 
@@ -9,7 +11,7 @@ sensory_bp = Blueprint("sensory", __name__)
 def _ensure_sensory_tables():
     inspector = inspect(db.engine)
     existing_tables = set(inspector.get_table_names())
-    required_models = [SensoryQuestion, SensorySetup, SensorySample, SensoryResult]
+    required_models = [SensoryQuestion, SensorySetup, SensorySample, SensoryResult, SensoryQuestionSet]
     missing_tables = [model.__table__ for model in required_models if model.__tablename__ not in existing_tables]
     if missing_tables:
         for table in missing_tables:
@@ -26,43 +28,24 @@ def _get_or_create_setup():
     return setup
 
 
-def _sync_demographic_questions():
-    """Ensure the standard demographic questions exist and default to enabled."""
-    _ensure_sensory_tables()
-    existing_questions = SensoryQuestion.query.filter_by(question_type="demographic").all()
-    existing_by_key = {q.demographic_key: q for q in existing_questions if q.demographic_key}
+def _seed_demographic_questions():
+    """Seed the standard demographic questions on first use (runs only when there are none)."""
     next_index = (db.session.query(db.func.max(SensoryQuestion.order_index)).scalar() or -1) + 1
-    changed = False
-
     for demographic in DEMOGRAPHIC_QUESTIONS:
-        existing = existing_by_key.get(demographic["key"])
-        if existing:
-            if existing.wording != demographic["wording"]:
-                existing.wording = demographic["wording"]
-                changed = True
-            if existing.options != demographic["options"]:
-                existing.options = demographic["options"]
-                changed = True
-            if existing.enabled is None:
-                existing.enabled = True
-                changed = True
-            continue
-
-        question = SensoryQuestion(
+        has_options = bool(demographic.get("options"))
+        q = SensoryQuestion(
             order_index=next_index,
-            question_type="demographic",
+            question_type="multiple_choice" if has_options else "text",
+            attribute=demographic["key"],
             wording=demographic["wording"],
             demographic_key=demographic["key"],
             enabled=True,
             capture_video=False,
         )
-        question.options = demographic["options"]
-        db.session.add(question)
+        q.options = demographic["options"]
+        db.session.add(q)
         next_index += 1
-        changed = True
-
-    if changed:
-        db.session.commit()
+    db.session.commit()
 
 
 @sensory_bp.route("/sensory_setup", methods=["GET"])
@@ -100,7 +83,10 @@ def update_setup():
 
 @sensory_bp.route("/sensory_questions", methods=["GET"])
 def list_questions():
-    _sync_demographic_questions()
+    _ensure_sensory_tables()
+    # Seed demographic defaults on first ever load (identified by demographic_key)
+    if SensoryQuestion.query.filter(SensoryQuestion.demographic_key.isnot(None)).count() == 0:
+        _seed_demographic_questions()
     questions = SensoryQuestion.query.order_by(SensoryQuestion.order_index).all()
     return jsonify([q.to_dict() for q in questions])
 
@@ -108,8 +94,6 @@ def list_questions():
 @sensory_bp.route("/sensory_questions", methods=["POST"])
 def add_question():
     data = request.get_json()
-    if data["question_type"] == "demographic":
-        return jsonify({"error": "Demographic questions are managed automatically"}), 400
     max_idx = db.session.query(db.func.max(SensoryQuestion.order_index)).scalar() or -1
     q = SensoryQuestion(
         order_index=max_idx + 1,
@@ -117,6 +101,7 @@ def add_question():
         attribute=data.get("attribute"),
         wording=data.get("wording"),
         capture_video=data.get("capture_video", False),
+        demographic_key=data.get("demographic_key"),
         enabled=True,
     )
     q.options = data.get("options", [])
@@ -129,14 +114,7 @@ def add_question():
 def update_question(question_id):
     q = SensoryQuestion.query.get_or_404(question_id)
     data = request.get_json()
-    if q.question_type == "demographic":
-        for field in ("enabled", "order_index"):
-            if field in data:
-                setattr(q, field, data[field])
-        db.session.commit()
-        return jsonify(q.to_dict())
-
-    for field in ("attribute", "wording", "capture_video", "enabled", "order_index", "question_type"):
+    for field in ("attribute", "wording", "capture_video", "enabled", "order_index", "question_type", "demographic_key"):
         if field in data:
             setattr(q, field, data[field])
     if "options" in data:
@@ -148,8 +126,6 @@ def update_question(question_id):
 @sensory_bp.route("/sensory_questions/<int:question_id>", methods=["DELETE"])
 def delete_question(question_id):
     q = SensoryQuestion.query.get_or_404(question_id)
-    if q.question_type == "demographic":
-        return jsonify({"error": "Demographic questions cannot be deleted, only disabled"}), 400
     db.session.delete(q)
     db.session.commit()
     return jsonify({"status": "ok"})
@@ -164,6 +140,62 @@ def reorder_questions():
             q.order_index = item["order_index"]
     db.session.commit()
     return jsonify({"status": "ok"})
+
+
+# ── Question Sets ──────────────────────────────────────────────────────────────
+
+@sensory_bp.route("/sensory_question_sets", methods=["GET"])
+def list_question_sets():
+    _ensure_sensory_tables()
+    sets = SensoryQuestionSet.query.order_by(SensoryQuestionSet.created_at.desc()).all()
+    return jsonify([s.to_list_dict() for s in sets])
+
+
+@sensory_bp.route("/sensory_question_sets", methods=["POST"])
+def create_question_set():
+    _ensure_sensory_tables()
+    data = request.get_json()
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+    questions = SensoryQuestion.query.order_by(SensoryQuestion.order_index).all()
+    qs = SensoryQuestionSet(
+        name=name,
+        questions_json=json.dumps([q.to_dict() for q in questions]),
+    )
+    db.session.add(qs)
+    db.session.commit()
+    return jsonify(qs.to_list_dict()), 201
+
+
+@sensory_bp.route("/sensory_question_sets/<int:set_id>", methods=["DELETE"])
+def delete_question_set(set_id):
+    qs = SensoryQuestionSet.query.get_or_404(set_id)
+    db.session.delete(qs)
+    db.session.commit()
+    return jsonify({"status": "ok"})
+
+
+@sensory_bp.route("/sensory_question_sets/<int:set_id>/load", methods=["POST"])
+def load_question_set(set_id):
+    """Replace all current questions with the saved snapshot."""
+    qs = SensoryQuestionSet.query.get_or_404(set_id)
+    SensoryQuestion.query.delete()
+    for q_data in qs.questions:
+        q = SensoryQuestion(
+            order_index=q_data["order_index"],
+            question_type=q_data["question_type"],
+            attribute=q_data.get("attribute"),
+            wording=q_data.get("wording"),
+            capture_video=q_data.get("capture_video", False),
+            demographic_key=q_data.get("demographic_key"),
+            enabled=q_data.get("enabled", True),
+        )
+        q.options = q_data.get("options", [])
+        db.session.add(q)
+    db.session.commit()
+    questions = SensoryQuestion.query.order_by(SensoryQuestion.order_index).all()
+    return jsonify([q.to_dict() for q in questions])
 
 
 # ── Results ───────────────────────────────────────────────────────────────────
@@ -243,7 +275,7 @@ def get_results():
 
 @sensory_bp.route("/sensory_result_dates", methods=["GET"])
 def get_result_dates():
-    from sqlalchemy import distinct, func
+    from sqlalchemy import distinct
     dates = (
         db.session.query(distinct(SensoryResult.session_date))
         .filter(SensoryResult.session_date.isnot(None))

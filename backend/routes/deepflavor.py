@@ -10,7 +10,6 @@ from models import (
     SensoryResult,
     SensorySetup,
     SensorySample,
-    DEMOGRAPHIC_QUESTIONS,
 )
 
 deepflavor_bp = Blueprint("deepflavor", __name__)
@@ -75,20 +74,16 @@ def session_start():
         .all()
     )
 
-    demographic_questions = []
-    for dq in DEMOGRAPHIC_QUESTIONS:
-        # Find the corresponding SensoryQuestion row (may be enabled or disabled)
-        row = next(
-            (q for q in all_questions if q.question_type == "demographic" and q.demographic_key == dq["key"]),
-            None,
-        )
-        if row:
-            demographic_questions.append(row.to_dict())
+    demographic_questions = [
+        q.to_dict()
+        for q in all_questions
+        if q.demographic_key is not None
+    ]
 
     live_questions = [
         q.to_dict()
         for q in all_questions
-        if q.question_type not in ("demographic",)
+        if q.demographic_key is None
     ]
 
     completed_samples = _get_completed_samples(panelist_id, today)

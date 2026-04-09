@@ -5,9 +5,10 @@ QUESTION_TYPES = (
     "rating_9",        # 1–9 hedonic scale
     "slider_100",      # 0–100 intensity slider
     "text",            # long-form open response
-    "multiple_choice", # custom options
+    "multiple_choice", # single-select custom options
+    "select_all",      # select all that apply (multi-select)
     "instruction",     # non-question panelist instruction
-    "demographic",     # hardcoded demographic question
+    "demographic",     # demographic question
 )
 
 DEMOGRAPHIC_QUESTIONS = [
@@ -157,6 +158,37 @@ class Panelist(db.Model):
             "session_date": self.session_date.isoformat(),
             "demographics_complete": self.demographics_complete,
             "started_at": self.started_at.isoformat() if self.started_at else None,
+        }
+
+
+class SensoryQuestionSet(db.Model):
+    """A named snapshot of all questions (demographic + experimental) that can be loaded."""
+    __tablename__ = "sensory_question_sets"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    questions_json = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, server_default=db.func.now())
+
+    @property
+    def questions(self):
+        return json.loads(self.questions_json)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "questions": self.questions,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+    def to_list_dict(self):
+        """Lightweight dict without full question payload for listing."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "question_count": len(self.questions),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 
