@@ -185,7 +185,7 @@ interface DemoBankItem {
   key: string
   label: string
   attribute: string
-  question_type: 'text' | 'multiple_choice'
+  question_type: 'text' | 'multiple_choice' | 'select_all'
   wording: string
   options: string[]
 }
