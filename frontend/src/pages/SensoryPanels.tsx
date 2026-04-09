@@ -23,6 +23,7 @@ import {
 const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   rating_9: 'Rating 1–9 (Dislike → Like)',
   slider_100: 'Slider 0–100 (Low → High)',
+  number_100: 'Number Input (0–100)',
   text: 'Long-form Text Response',
   multiple_choice: 'Multiple Choice (pick one)',
   select_all: 'Select All That Apply',
@@ -33,6 +34,7 @@ const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
 const QUESTION_TYPE_COLORS: Record<QuestionType, string> = {
   rating_9: 'indigo',
   slider_100: 'cyan',
+  number_100: 'blue',
   text: 'gray',
   multiple_choice: 'violet',
   select_all: 'grape',
@@ -185,7 +187,7 @@ interface DemoBankItem {
   key: string
   label: string
   attribute: string
-  question_type: 'text' | 'multiple_choice' | 'select_all'
+  question_type: 'text' | 'multiple_choice' | 'select_all' | 'number_100'
   wording: string
   options: string[]
 }
@@ -411,13 +413,15 @@ function QuestionFormModal({ existing, onClose }: { existing?: SensoryQuestion; 
 
 function DemographicFormModal({ existing, onClose }: { existing?: SensoryQuestion; onClose: () => void }) {
   const qc = useQueryClient()
-  const [demoType, setDemoType] = useState<'text' | 'multiple_choice' | 'select_all'>(
+  const [demoType, setDemoType] = useState<'text' | 'multiple_choice' | 'select_all' | 'number_100'>(
     existing
       ? existing.question_type === 'select_all'
         ? 'select_all'
-        : existing.options.length > 0
-          ? 'multiple_choice'
-          : 'text'
+        : existing.question_type === 'number_100'
+          ? 'number_100'
+          : existing.options.length > 0
+            ? 'multiple_choice'
+            : 'text'
       : 'multiple_choice',
   )
   const [attribute, setAttribute] = useState(existing?.attribute ?? existing?.demographic_key ?? '')
@@ -491,9 +495,10 @@ function DemographicFormModal({ existing, onClose }: { existing?: SensoryQuestio
           { value: 'text', label: 'Text input' },
           { value: 'multiple_choice', label: 'Multiple choice (pick one)' },
           { value: 'select_all', label: 'Select all that apply' },
+          { value: 'number_100', label: 'Number Input (0–100)' },
         ]}
         value={demoType}
-        onChange={(v) => setDemoType(v as 'text' | 'multiple_choice' | 'select_all')}
+        onChange={(v) => setDemoType(v as 'text' | 'multiple_choice' | 'select_all' | 'number_100')}
       />
 
       <TextInput

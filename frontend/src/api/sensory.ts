@@ -1,6 +1,6 @@
 import client from './client'
 
-export type QuestionType = 'rating_9' | 'slider_100' | 'text' | 'multiple_choice' | 'select_all' | 'instruction' | 'demographic'
+export type QuestionType = 'rating_9' | 'slider_100' | 'text' | 'multiple_choice' | 'select_all' | 'instruction' | 'demographic' | 'number_100'
 
 export interface SensoryQuestion {
   id: number

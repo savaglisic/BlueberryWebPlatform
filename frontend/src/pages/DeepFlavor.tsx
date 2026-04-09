@@ -262,6 +262,26 @@ function SelectAll({
   )
 }
 
+function Number100({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <TextInput
+      value={value}
+      onChange={(e) => {
+        const raw = e.currentTarget.value.replace(/\D/g, '').slice(0, 3)
+        if (raw === '') { onChange(''); return }
+        const n = Math.min(parseInt(raw, 10), 100)
+        onChange(String(n))
+      }}
+      placeholder="0 – 100"
+      size="xl"
+      inputMode="numeric"
+      autoFocus
+      style={{ width: '100%', maxWidth: 200 }}
+      styles={{ input: { fontSize: '2rem', textAlign: 'center' } }}
+    />
+  )
+}
+
 function TextResponse({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <Textarea
@@ -313,6 +333,8 @@ function QuestionInput({
       if (question.options.length > 0)
         return <MultipleChoice options={question.options} value={value} onChange={onChange} />
       return <TextResponse value={value} onChange={onChange} />
+    case 'number_100':
+      return <Number100 value={value} onChange={onChange} />
     case 'text':
       return <TextResponse value={value} onChange={onChange} />
     case 'instruction':
