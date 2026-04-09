@@ -12,12 +12,22 @@ frontend/dist/
 frontend/.env
 
 # Backend
-backend/__pycache__/
-backend/*.pyc
 backend/.env
 backend/venv/
 backend/.venv/
 backend/.python-version
+
+# Python artifacts (anywhere in repo)
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+*.whl
+.mypy_cache/
+.pytest_cache/
 
 # Docker
 .env
