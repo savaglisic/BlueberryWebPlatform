@@ -1295,6 +1295,16 @@ function ResultsTab() {
     queryFn: getSensoryResultDates,
   })
 
+  const { data: setup } = useQuery({
+    queryKey: ['sensory-setup'],
+    queryFn: getSensorySetup,
+  })
+
+  const sampleMap: Record<string, string> = {}
+  for (const s of setup?.samples ?? []) {
+    if (s.real_identifier) sampleMap[s.sample_number] = s.real_identifier
+  }
+
   const { data: pageData, isLoading: resultsLoading } = useQuery({
     queryKey: ['sensory-results', selectedDate, page],
     queryFn: () => getSensoryResults(selectedDate!, page, PER_PAGE),
@@ -1319,9 +1329,9 @@ function ResultsTab() {
     try {
       const all = await fetchAll()
       const { rows, attributes } = pivotBerryResults(all)
-      const headers = ['submitted_at_et', 'panelist_id', 'sample_number', ...attributes]
+      const headers = ['submitted_at_et', 'panelist_id', 'sample_number', 'real_identifier', ...attributes]
       const csvRows = rows.map((row) => [
-        toET(row.submitted_at), row.panelist_id, row.sample_number,
+        toET(row.submitted_at), row.panelist_id, row.sample_number, sampleMap[row.sample_number] ?? '',
         ...attributes.map((a) => row.cols[a] ?? ''),
       ])
       downloadCsv(`berry_results_${selectedDate}.csv`, headers, csvRows)
@@ -1350,9 +1360,9 @@ function ResultsTab() {
       const { demoAttributes, rows: demoRows } = pivotDemoResults(all)
       const demoMap: Record<string, (typeof demoRows)[0]> = {}
       for (const r of demoRows) demoMap[r.panelist_id] = r
-      const headers = ['submitted_at_et', 'panelist_id', 'sample_number', ...demoAttributes, ...attributes]
+      const headers = ['submitted_at_et', 'panelist_id', 'sample_number', 'real_identifier', ...demoAttributes, ...attributes]
       const csvRows = berryRows.map((row) => [
-        toET(row.submitted_at), row.panelist_id, row.sample_number,
+        toET(row.submitted_at), row.panelist_id, row.sample_number, sampleMap[row.sample_number] ?? '',
         ...demoAttributes.map((a) => demoMap[row.panelist_id]?.cols[a] ?? ''),
         ...attributes.map((a) => row.cols[a] ?? ''),
       ])
@@ -1423,6 +1433,7 @@ function ResultsTab() {
                         <Table.Th>Submitted (ET)</Table.Th>
                         <Table.Th>Panelist</Table.Th>
                         <Table.Th>Sample</Table.Th>
+                        <Table.Th>Berry</Table.Th>
                         {attributes.map((col) => <Table.Th key={col}>{col}</Table.Th>)}
                       </Table.Tr>
                     </Table.Thead>
@@ -1432,6 +1443,7 @@ function ResultsTab() {
                           <Table.Td style={{ color: 'var(--mantine-color-dimmed)', fontSize: '0.8rem' }}>{toET(row.submitted_at)}</Table.Td>
                           <Table.Td>{row.panelist_id}</Table.Td>
                           <Table.Td>{row.sample_number}</Table.Td>
+                          <Table.Td c="dimmed">{sampleMap[row.sample_number] ?? '—'}</Table.Td>
                           {attributes.map((col) => <Table.Td key={col}>{row.cols[col] ?? '—'}</Table.Td>)}
                         </Table.Tr>
                       ))}
