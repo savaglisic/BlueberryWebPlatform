@@ -102,8 +102,9 @@ function OptionsTab() {
       qc.invalidateQueries({ queryKey: ['options'] })
       setNewText('')
       notifications.show({ message: 'Option added', color: 'green' })
-    } catch {
-      notifications.show({ message: 'Failed to add option', color: 'red' })
+    } catch (err: any) {
+      const msg = err?.response?.data?.error ?? 'Failed to add option'
+      notifications.show({ message: msg, color: 'red' })
     } finally {
       setAdding(false)
     }

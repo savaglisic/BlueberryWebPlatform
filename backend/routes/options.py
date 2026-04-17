@@ -17,6 +17,12 @@ def add_option():
     option_text = data.get("option_text")
     if not option_type or not option_text:
         return jsonify({"error": "option_type and option_text required"}), 400
+    exists = OptionConfig.query.filter(
+        OptionConfig.option_type == option_type,
+        db.func.lower(OptionConfig.option_text) == option_text.strip().lower()
+    ).first()
+    if exists:
+        return jsonify({"error": f'"{option_text.strip()}" already exists as an option in this list — you can\'t add it a second time'}), 409
     option = OptionConfig(option_type=option_type, option_text=option_text)
     db.session.add(option)
     db.session.commit()
