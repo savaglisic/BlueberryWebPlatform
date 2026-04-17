@@ -299,8 +299,7 @@ export function FQDatabase() {
     let url: string
     if (type === 'data') {
       const params = new URLSearchParams()
-      if (activeYearPrefix) params.set('year_prefix', activeYearPrefix)
-      if (activeFilters.length) params.set('filters', JSON.stringify(activeFilters))
+      if (currentYearOnly) params.set('year_prefix', currentYearPrefix)
       const qs = params.toString()
       url = `/api/download_plant_data_csv${qs ? `?${qs}` : ''}`
     } else {

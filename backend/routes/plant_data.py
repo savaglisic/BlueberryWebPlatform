@@ -144,6 +144,8 @@ def download_plant_data_csv():
     import json as _json
     year_prefix = request.args.get("year_prefix")
     filters_raw = request.args.get("filters")
+    date_filter_field = request.args.get("date_filter_field")
+    date_filter_date = request.args.get("date_filter_date")
 
     columns = [c.name for c in PlantData.__table__.columns]
 
@@ -151,6 +153,14 @@ def download_plant_data_csv():
         query = PlantData.query
         if year_prefix:
             query = query.filter(PlantData.barcode.like(f"{year_prefix}%"))
+        if date_filter_field and date_filter_date:
+            try:
+                day_start = datetime.strptime(date_filter_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                day_end = day_start.replace(hour=23, minute=59, second=59)
+                col = PlantData.timestamp if date_filter_field == "timestamp" else PlantData.updated_at
+                query = query.filter(col >= day_start, col <= day_end)
+            except ValueError:
+                pass
         if filters_raw:
             filter_list = _json.loads(filters_raw)
             include_clauses = []
