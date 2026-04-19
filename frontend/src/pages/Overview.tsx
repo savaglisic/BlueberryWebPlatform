@@ -170,10 +170,6 @@ export function Overview() {
     return null
   })()
 
-  const phCompletionRate =
-    stats && stats.barcodes_created > 0
-      ? Math.round((stats.ph_collected / stats.barcodes_created) * 100)
-      : null
 
   return (
     <Stack gap="lg">
@@ -225,7 +221,7 @@ export function Overview() {
           value={stats?.barcodes_created}
           icon={<IconBarcode size={16} />}
           color="blue"
-          sub="New entries in audit log"
+          sub="New Barcodes defined in Add Samples"
           loading={statsLoading}
         />
         <StatCard
@@ -233,7 +229,7 @@ export function Overview() {
           value={stats?.data_collected}
           icon={<IconDatabaseImport size={16} />}
           color="teal"
-          sub="field_updated events"
+          sub="Events where either the FruitFirm or a User Updated Data"
           loading={statsLoading}
         />
         <StatCard
@@ -241,7 +237,7 @@ export function Overview() {
           value={stats?.ph_collected}
           icon={<IconDroplet size={16} />}
           color="grape"
-          sub={phCompletionRate != null ? `${phCompletionRate}% of barcodes created` : undefined}
+          sub="pH recording events"
           loading={statsLoading}
         />
         <StatCard
@@ -249,7 +245,7 @@ export function Overview() {
           value={stats?.fruitfirm_collected}
           icon={<IconDeviceWatch size={16} />}
           color="orange"
-          sub="Unique barcodes measured"
+          sub="Barcodes for which the FruitFirm has returned data"
           loading={statsLoading}
         />
       </SimpleGrid>
