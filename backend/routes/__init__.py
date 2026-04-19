@@ -7,6 +7,7 @@ from .options import options_bp
 from .sensory import sensory_bp
 from .deepflavor import deepflavor_bp
 from .me import me_bp
+from .overview import overview_bp
 
 __all__ = [
     "auth_bp",
@@ -18,4 +19,5 @@ __all__ = [
     "sensory_bp",
     "deepflavor_bp",
     "me_bp",
+    "overview_bp",
 ]

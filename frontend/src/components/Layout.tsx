@@ -27,9 +27,11 @@ import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconMicroscope,
+  IconLayoutDashboard,
 } from '@tabler/icons-react'
 
 const allNavItems = [
+  { label: 'Overview', path: '/overview', icon: IconLayoutDashboard, adminOnly: true },
   { label: 'Add Samples', path: '/add-samples', icon: IconPlant2, adminOnly: false },
   { label: 'FQ Lab', path: '/fq-lab', icon: IconFlask, adminOnly: false },
   { label: 'FQ Database', path: '/fq-database', icon: IconDatabase, adminOnly: true },
