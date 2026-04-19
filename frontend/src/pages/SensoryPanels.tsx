@@ -1295,7 +1295,7 @@ function ResultsTab() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [subTab, setSubTab] = useState<string | null>('berry')
   const [page, setPage] = useState(1)
-  const [downloading, setDownloading] = useState<'berry' | 'demo' | 'combined' | null>(null)
+  const [downloading, setDownloading] = useState<'combined' | null>(null)
 
   const handleDeleteBerry = (panelist_id: string, sample_number: string) => {
     modals.openConfirmModal({
@@ -1365,34 +1365,6 @@ function ResultsTab() {
     return first.results
   }
 
-  const handleDownloadBerry = async () => {
-    setDownloading('berry')
-    try {
-      const all = await fetchAll()
-      const { rows, attributes } = pivotBerryResults(all)
-      const headers = ['submitted_at_et', 'panelist_id', 'sample_number', 'real_identifier', ...attributes]
-      const csvRows = rows.map((row) => [
-        toET(row.submitted_at), row.panelist_id, row.sample_number, sampleMap[row.sample_number] ?? '',
-        ...attributes.map((a) => row.cols[a] ?? ''),
-      ])
-      downloadCsv(`berry_results_${selectedDate}.csv`, headers, csvRows)
-    } finally { setDownloading(null) }
-  }
-
-  const handleDownloadDemo = async () => {
-    setDownloading('demo')
-    try {
-      const all = await fetchAll()
-      const { rows, demoAttributes } = pivotDemoResults(all)
-      const headers = ['submitted_at_et', 'panelist_id', ...demoAttributes]
-      const csvRows = rows.map((row) => [
-        toET(row.submitted_at), row.panelist_id,
-        ...demoAttributes.map((a) => row.cols[a] ?? ''),
-      ])
-      downloadCsv(`demographics_${selectedDate}.csv`, headers, csvRows)
-    } finally { setDownloading(null) }
-  }
-
   const handleDownloadCombined = async () => {
     setDownloading('combined')
     try {
@@ -1438,17 +1410,9 @@ function ResultsTab() {
           style={{ minWidth: 200 }}
         />
         <Group gap="xs">
-          <Button size="xs" variant="default" leftSection={<IconDownload size={13} />}
-            disabled={!totalPairs} loading={downloading === 'berry'} onClick={handleDownloadBerry}>
-            Berry CSV
-          </Button>
-          <Button size="xs" variant="default" leftSection={<IconDownload size={13} />}
-            disabled={!totalPairs} loading={downloading === 'demo'} onClick={handleDownloadDemo}>
-            Demographics CSV
-          </Button>
           <Button size="xs" variant="filled" leftSection={<IconDownload size={13} />}
             disabled={!totalPairs} loading={downloading === 'combined'} onClick={handleDownloadCombined}>
-            Combined CSV
+            Download Results
           </Button>
         </Group>
       </Group>
