@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Stack,
   Group,
@@ -114,9 +114,20 @@ export function Overview() {
   const [mode, setMode] = useState<Mode>('recent')
   const [pickedDate, setPickedDate] = useState<Date | null>(null)
 
+  const queryClient = useQueryClient()
+
   const { data: recentDateData } = useQuery({
     queryKey: ['overview-recent-date'],
     queryFn: getMostRecentDate,
+    refetchInterval: 60_000,
+    select: (data) => {
+      const prev = queryClient.getQueryData<typeof data>(['overview-recent-date'])
+      if (prev && prev.date !== data.date) {
+        queryClient.invalidateQueries({ queryKey: ['overview-stats'] })
+        queryClient.invalidateQueries({ queryKey: ['overview-projects'] })
+      }
+      return data
+    },
   })
 
   const recentDate = recentDateData?.date ?? null
@@ -126,12 +137,14 @@ export function Overview() {
     queryKey: ['overview-stats', dateParams],
     queryFn: () => getOverviewStats(dateParams),
     enabled: mode !== 'recent' || !!recentDate,
+    refetchInterval: 60_000,
   })
 
   const { data: projects, isLoading: projectsLoading } = useQuery({
     queryKey: ['overview-projects', dateParams],
     queryFn: () => getOverviewProjects(dateParams),
     enabled: mode !== 'recent' || !!recentDate,
+    refetchInterval: 60_000,
   })
 
   const today = isoDate(new Date())
