@@ -1,12 +1,34 @@
 import csv
 import io
+import json
+import os
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from flask import Blueprint, request, jsonify, Response, stream_with_context
 from extensions import db
-from models import PlantData
+from models import PlantData, AuditLog
 from middleware.api_key import require_api_key
+
+
+def _user_email():
+    return (
+        request.headers.get("Cf-Access-Authenticated-User-Email")
+        or os.environ.get("DEV_USER_EMAIL", "")
+    )
+
+
+def _write_audit(barcode, action, fields, user=None):
+    try:
+        entry = AuditLog(
+            barcode=barcode,
+            action=action,
+            fields_changed=json.dumps(fields),
+            user_email=user if user is not None else _user_email(),
+        )
+        db.session.add(entry)
+    except Exception:
+        pass  # audit failure should never break the main request
 
 plant_data_bp = Blueprint("plant_data", __name__)
 
@@ -26,16 +48,17 @@ def add_plant_data():
         return jsonify({"error": "Barcode required"}), 400
 
     record = PlantData.query.filter_by(barcode=barcode).first()
+    changed_fields = [f for f in PLANT_FIELDS if f in data]
     if record:
-        for field in PLANT_FIELDS:
-            if field in data:
-                setattr(record, field, data[field])
+        for field in changed_fields:
+            setattr(record, field, data[field])
+        _write_audit(barcode, "field_updated", changed_fields)
     else:
         record = PlantData(barcode=barcode)
-        for field in PLANT_FIELDS:
-            if field in data:
-                setattr(record, field, data[field])
+        for field in changed_fields:
+            setattr(record, field, data[field])
         db.session.add(record)
+        _write_audit(barcode, "barcode_created", changed_fields)
 
     db.session.commit()
     return jsonify({"status": "ok", "record": record.to_dict()})
@@ -135,6 +158,9 @@ def fruit_firm():
     record.size_category = data.get("size_category", record.size_category)
     record.fruitfirm_timestamp = datetime.now(ZoneInfo("America/New_York"))
 
+    firmness_fields = [f for f in ["avg_firmness", "avg_diameter", "sd_firmness", "sd_diameter", "firm_category", "size_category"] if data.get(f) is not None]
+    _write_audit(barcode, "field_updated", firmness_fields, user="FruitFirm")
+
     db.session.commit()
     return jsonify({"status": "ok", "record": record.to_dict()})
 
@@ -203,3 +229,23 @@ def download_plant_data_csv():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=plant_data.csv"},
     )
+
+
+@plant_data_bp.route("/audit_log", methods=["GET"])
+def get_audit_log():
+    barcode = request.args.get("barcode")
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+
+    query = AuditLog.query
+    if barcode:
+        query = query.filter(AuditLog.barcode == barcode)
+    query = query.order_by(AuditLog.recorded_at.desc())
+    paginated = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    return jsonify({
+        "total": paginated.total,
+        "page": paginated.page,
+        "pages": paginated.pages,
+        "data": [r.to_dict() for r in paginated.items],
+    })

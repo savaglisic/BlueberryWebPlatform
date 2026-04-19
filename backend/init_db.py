@@ -1,5 +1,5 @@
 """
-Run once to create all tables and seed default data.
+Seed default data only. Tables must already exist via Alembic migrations.
 Usage: flask --app app shell < init_db.py
    or: python init_db.py
 """
@@ -28,8 +28,6 @@ DEFAULT_OPTIONS = [
 app = create_app()
 
 with app.app_context():
-    db.create_all()
-    print("Tables created.")
 
     if not EmailWhitelist.query.filter_by(email=DEFAULT_EMAIL).first():
         db.session.add(EmailWhitelist(email=DEFAULT_EMAIL))
