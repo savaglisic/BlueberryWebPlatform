@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   TextInput, NumberInput, Textarea, Button, Paper, Title,
-  Grid, Stack, Group, Alert, Text, Modal, ActionIcon,
+  Grid, Stack, Group, Alert, Text, Modal, ActionIcon, Switch, Badge, Tooltip,
 } from '@mantine/core'
 import { SelectWithAdd } from '../components/SelectWithAdd'
 import { notifications } from '@mantine/notifications'
-import { IconBarcode, IconRefresh, IconAlertCircle, IconInfoCircle, IconX } from '@tabler/icons-react'
+import { IconBarcode, IconRefresh, IconAlertCircle, IconInfoCircle, IconX, IconBolt } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { getOptions } from '../api/options'
 import { addPlantData, checkBarcode } from '../api/plantData'
@@ -37,6 +37,20 @@ export function AddSamples() {
   const [yearWarning, setYearWarning] = useState(false)
   const [invalidBarcodeModal, setInvalidBarcodeModal] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [rapidFire, setRapidFire] = useState(false)
+
+  const rapidFireMemory = useRef<Omit<typeof EMPTY_FORM, 'barcode' | 'genotype'>>({
+    stage: '',
+    site: '',
+    block: '',
+    project: '',
+    post_harvest: '',
+    bush_plant_number: '',
+    mass: '',
+    number_of_berries: '',
+    x_berry_mass: '',
+    notes: '',
+  })
 
   const barcodeRef = useRef<HTMLInputElement>(null)
   const genotypeRef = useRef<HTMLInputElement>(null)
@@ -54,7 +68,12 @@ export function AddSamples() {
     // Only accept digits, truncate to 7
     const digits = scanned.replace(/\D/g, '').slice(0, 7)
     if (!digits) return
-    setForm((_f) => ({ ...EMPTY_FORM, barcode: digits }))
+    setForm((_f) => ({
+      ...EMPTY_FORM,
+      ...(rapidFire ? rapidFireMemory.current : {}),
+      barcode: digits,
+      genotype: '',
+    }))
     setBarcodeExistsWarning(false)
     setGenotypeSuggestion('')
     prevBarcodeRef.current = ''
@@ -72,7 +91,12 @@ export function AddSamples() {
 
     // If barcode changed after previously being 7 digits, reset form
     if (prev.length === 7 && cur !== prev) {
-      setForm((_f) => ({ ...EMPTY_FORM, barcode: cur }))
+      setForm((_f) => ({
+        ...EMPTY_FORM,
+        ...(rapidFire ? rapidFireMemory.current : {}),
+        barcode: cur,
+        genotype: '',
+      }))
       setBarcodeExistsWarning(false)
       setGenotypeSuggestion('')
     }
@@ -86,7 +110,7 @@ export function AddSamples() {
       genotypeRef.current?.focus()
       checkBarcodeInBackend(cur)
     }
-  }, [form.barcode])
+  }, [form.barcode, rapidFire])
 
   const checkBarcodeInBackend = async (barcode: string) => {
     try {
@@ -164,7 +188,23 @@ export function AddSamples() {
       })
       await addPlantData(payload as any)
       notifications.show({ message: 'Sample saved successfully', color: 'green' })
-      setForm({ ...EMPTY_FORM })
+      if (rapidFire) {
+        rapidFireMemory.current = {
+          stage: form.stage,
+          site: form.site,
+          block: form.block,
+          project: form.project,
+          post_harvest: form.post_harvest,
+          bush_plant_number: form.bush_plant_number,
+          mass: form.mass,
+          number_of_berries: form.number_of_berries,
+          x_berry_mass: form.x_berry_mass,
+          notes: form.notes,
+        }
+        setForm((f) => ({ ...f, barcode: '', genotype: '' }))
+      } else {
+        setForm({ ...EMPTY_FORM })
+      }
       setBarcodeExistsWarning(false)
       setGenotypeSuggestion('')
       prevBarcodeRef.current = ''
@@ -197,12 +237,51 @@ export function AddSamples() {
       {/* Barcode entry card — always visible */}
       <Paper withBorder p="md" radius="md">
         <Stack gap="xs">
-          <Group gap="xs" align="center">
-            <IconBarcode size={20} opacity={0.5} />
-            <Text fw={600}>Scan or enter a barcode to begin</Text>
+          <Group justify="space-between" align="center">
+            <Group gap="xs" align="center">
+              <IconBarcode size={20} opacity={0.5} />
+              <Text fw={600}>Scan or enter a barcode to begin</Text>
+            </Group>
+            <Group gap="xs" align="center">
+              {rapidFire && (
+                <Badge color="orange" variant="light" leftSection={<IconBolt size={12} />}>
+                  Rapid Fire
+                </Badge>
+              )}
+              <Tooltip
+                label="Rapid Fire remembers all fields except barcode and genotype between submissions, so you can quickly enter multiple samples with the same stage, site, block, and other details."
+                multiline
+                w={280}
+                withArrow
+              >
+                <Switch
+                  label="Rapid Fire"
+                  checked={rapidFire}
+                  onChange={(e) => {
+                    const on = e.currentTarget.checked
+                    setRapidFire(on)
+                    if (!on) {
+                      rapidFireMemory.current = {
+                        stage: '', site: '', block: '', project: '', post_harvest: '',
+                        bush_plant_number: '', mass: '', number_of_berries: '', x_berry_mass: '', notes: '',
+                      }
+                      setForm((f) => ({
+                        ...f,
+                        stage: '', site: '', block: '', project: '', post_harvest: '',
+                        bush_plant_number: '', mass: '', number_of_berries: '', x_berry_mass: '', notes: '',
+                      }))
+                    }
+                  }}
+                  color="orange"
+                  size="sm"
+                />
+              </Tooltip>
+            </Group>
           </Group>
           <Text size="sm" c="dimmed">
-            Use a handheld scanner or type a 7-digit barcode. The rest of the form will appear once a valid barcode is entered.
+            {rapidFire
+              ? 'Rapid Fire is on — all fields except barcode and genotype will be remembered between submissions.'
+              : 'Use a handheld scanner or type a 7-digit barcode. The rest of the form will appear once a valid barcode is entered.'}
           </Text>
           <Stack gap={4}>
             <TextInput
