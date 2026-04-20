@@ -289,7 +289,17 @@ export function Overview() {
             </Text>
           </Center>
         ) : (
-          <Table highlightOnHover withTableBorder>
+          <div style={{ overflowX: 'auto' }}>
+        <Table highlightOnHover withTableBorder style={{ minWidth: 738, tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: 110 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 104 }} />
+              <col style={{ width: 104 }} />
+              <col style={{ width: 104 }} />
+              <col style={{ width: 104 }} />
+              <col style={{ width: 104 }} />
+            </colgroup>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Project</Table.Th>
@@ -329,7 +339,7 @@ export function Overview() {
               {projects.map((row) => (
                 <Table.Tr key={row.project}>
                   <Table.Td fw={600}>{row.project}</Table.Td>
-                  <Table.Td style={{ textAlign: 'center' }}>
+                  <Table.Td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                     <Badge variant="filled" color="blue" size="sm">
                       {row.barcodes_created}
                     </Badge>
@@ -339,7 +349,7 @@ export function Overview() {
                       <Text size="sm" w={28} style={{ textAlign: 'right' }}>
                         {row.ph}
                       </Text>
-                      <div style={{ flex: 1, minWidth: 60 }}>
+                      <div style={{ flex: 1 }}>
                         <CompletionBar value={row.ph} total={row.barcodes_created} color="grape" />
                       </div>
                     </Group>
@@ -349,7 +359,7 @@ export function Overview() {
                       <Text size="sm" w={28} style={{ textAlign: 'right' }}>
                         {row.mass}
                       </Text>
-                      <div style={{ flex: 1, minWidth: 60 }}>
+                      <div style={{ flex: 1 }}>
                         <CompletionBar value={row.mass} total={row.barcodes_created} color="cyan" />
                       </div>
                     </Group>
@@ -359,7 +369,7 @@ export function Overview() {
                       <Text size="sm" w={28} style={{ textAlign: 'right' }}>
                         {row.brix}
                       </Text>
-                      <div style={{ flex: 1, minWidth: 60 }}>
+                      <div style={{ flex: 1 }}>
                         <CompletionBar value={row.brix} total={row.barcodes_created} color="yellow" />
                       </div>
                     </Group>
@@ -369,7 +379,7 @@ export function Overview() {
                       <Text size="sm" w={28} style={{ textAlign: 'right' }}>
                         {row.tta}
                       </Text>
-                      <div style={{ flex: 1, minWidth: 60 }}>
+                      <div style={{ flex: 1 }}>
                         <CompletionBar value={row.tta} total={row.barcodes_created} color="red" />
                       </div>
                     </Group>
@@ -379,7 +389,7 @@ export function Overview() {
                       <Text size="sm" w={28} style={{ textAlign: 'right' }}>
                         {row.fruitfirm}
                       </Text>
-                      <div style={{ flex: 1, minWidth: 60 }}>
+                      <div style={{ flex: 1 }}>
                         <CompletionBar value={row.fruitfirm} total={row.barcodes_created} color="orange" />
                       </div>
                     </Group>
@@ -388,6 +398,7 @@ export function Overview() {
               ))}
             </Table.Tbody>
           </Table>
+        </div>
         )}
       </Paper>
     </Stack>
