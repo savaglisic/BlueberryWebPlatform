@@ -1,6 +1,8 @@
 import json
 
 from flask import Blueprint, request, jsonify
+from storage import get_client, BUCKET
+from minio.error import S3Error
 from sqlalchemy import inspect
 from extensions import db
 from models import SensoryQuestion, SensorySetup, SensorySample, SensoryResult, SensoryQuestionSet, SensoryVideo, DEMOGRAPHIC_QUESTIONS
@@ -307,6 +309,18 @@ def delete_berry_result():
     date = request.json.get("date")
     if not panelist_id or not sample_number or not date:
         return jsonify({"error": "panelist_id, sample_number, and date are required"}), 400
+    videos = SensoryVideo.query.filter_by(
+        panelist_id=panelist_id,
+        sample_number=sample_number,
+        session_date=date,
+    ).all()
+    client = get_client()
+    for v in videos:
+        try:
+            client.remove_object(BUCKET, v.object_name)
+        except S3Error:
+            pass
+        db.session.delete(v)
     SensoryResult.query.filter_by(
         panelist_id=panelist_id,
         sample_number=sample_number,
