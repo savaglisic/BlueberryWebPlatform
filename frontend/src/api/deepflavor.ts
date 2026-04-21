@@ -40,3 +40,26 @@ export const submitSampleResponse = (
   client
     .post('/deepflavor/sample_response', { panelist_id, sample_number, responses })
     .then((r) => r.data)
+
+export const uploadVideo = (
+  blob: Blob,
+  panelist_id: string,
+  sample_number: string,
+  attribute: string,
+  question_id: number,
+): Promise<void> => {
+  const date = new Date()
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  const yyyy = date.getFullYear()
+  const form = new FormData()
+  form.append('file', blob, 'video.webm')
+  form.append('panelist_id', panelist_id)
+  form.append('sample_number', sample_number)
+  form.append('attribute', attribute)
+  form.append('date', `${mm}${dd}${yyyy}`)
+  form.append('question_id', String(question_id))
+  return client.post('/deepflavor/upload_video', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(() => undefined)
+}

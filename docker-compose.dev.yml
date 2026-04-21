@@ -6,7 +6,6 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/blueweb
       FLASK_DEBUG: "1"
       DEV_USER_EMAIL: savaglisic@ufl.edu
 
@@ -29,6 +28,14 @@ services:
       - ./frontend/tsconfig.json:/app/tsconfig.json
       - ./frontend/tsconfig.app.json:/app/tsconfig.app.json
       - ./frontend/tsconfig.node.json:/app/tsconfig.node.json
+
+  minio:
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - internal
+      - default
 
   nginx:
     volumes:

@@ -10,9 +10,48 @@ from models import (
     SensoryResult,
     SensorySetup,
     SensorySample,
+    SensoryVideo,
 )
+import storage
 
 deepflavor_bp = Blueprint("deepflavor", __name__)
+
+
+@deepflavor_bp.route("/deepflavor/upload_video", methods=["POST"])
+def upload_video():
+    """Receive a WebM video blob and store it in MinIO."""
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"error": "file is required"}), 400
+
+    panelist_id = request.form.get("panelist_id", "unknown")
+    sample_number = request.form.get("sample_number", "unknown")
+    attribute = request.form.get("attribute", "unknown").replace(" ", "_").lower()
+    date_str = request.form.get("date", _date.today().strftime("%m%d%Y"))
+
+    folder = _date.today().strftime("%Y-%m-%d")
+    filename = f"panelist_{panelist_id}_sample_{sample_number}_date_{date_str}_{attribute}.webm"
+    object_name = f"{folder}/{filename}"
+
+    question_id = request.form.get("question_id")
+
+    data = file.read()
+    try:
+        storage.upload_video(data, object_name)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    db.session.add(SensoryVideo(
+        session_date=_date.today(),
+        panelist_id=panelist_id,
+        sample_number=sample_number,
+        question_id=int(question_id) if question_id else None,
+        attribute=attribute,
+        object_name=object_name,
+    ))
+    db.session.commit()
+
+    return jsonify({"object_name": object_name})
 
 
 def _ensure_panelists_table():

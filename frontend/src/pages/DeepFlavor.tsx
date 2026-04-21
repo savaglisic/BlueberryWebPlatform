@@ -24,6 +24,7 @@ import {
   startSession,
   submitDemographics,
   submitSampleResponse,
+  uploadVideo,
   type SessionData,
   type ResponsePayload,
 } from '../api/deepflavor'
@@ -413,11 +414,47 @@ export function DeepFlavor() {
   const [webcamUnavailable, setWebcamUnavailable] = useState(false)
   const webcamVideoRef = useRef<HTMLVideoElement | null>(null)
 
+  // Video recording
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const recordedChunksRef = useRef<Blob[]>([])
+  const recordingQuestionRef = useRef<{ panelistId: string; sampleNumber: string; attribute: string; questionId: number } | null>(null)
+
+  const startRecording = useCallback((stream: MediaStream) => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') return
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
+      ? 'video/webm;codecs=vp8'
+      : 'video/webm'
+    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 500_000 })
+    recordedChunksRef.current = []
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) recordedChunksRef.current.push(e.data)
+    }
+    mediaRecorderRef.current = recorder
+    recorder.start(1000)
+  }, [])
+
+  const stopAndUpload = useCallback(() => {
+    const recorder = mediaRecorderRef.current
+    const meta = recordingQuestionRef.current
+    if (!recorder || recorder.state === 'inactive' || !meta) return
+    recorder.onstop = () => {
+      const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' })
+      recordedChunksRef.current = []
+      uploadVideo(blob, meta.panelistId, meta.sampleNumber, meta.attribute, meta.questionId).catch(() => {})
+      recordingQuestionRef.current = null
+    }
+    recorder.stop()
+  }, [])
+
   useEffect(() => {
     if (screen !== 'webcam_check') {
-      if (webcamStream) {
-        webcamStream.getTracks().forEach((t) => t.stop())
-        setWebcamStream(null)
+      // Stop stream only when leaving questions entirely (complete/welcome), not during question flow
+      if (screen === 'welcome' || screen === 'complete') {
+        stopAndUpload()
+        if (webcamStream) {
+          webcamStream.getTracks().forEach((t) => t.stop())
+          setWebcamStream(null)
+        }
       }
       return
     }
@@ -442,6 +479,9 @@ export function DeepFlavor() {
   // ── Handlers ──
 
   const handleEndSession = () => {
+    stopAndUpload()
+    if (webcamStream) webcamStream.getTracks().forEach((t) => t.stop())
+    setWebcamStream(null)
     setPanelistInput('')
     setPanelistId('')
     setSession(null)
@@ -519,15 +559,40 @@ export function DeepFlavor() {
     setScreen('questions')
   }
 
+  // Start/stop recording as the current question changes
+  useEffect(() => {
+    if (screen !== 'questions' || !session || selectedSample === null) return
+    const questions = session.live_questions
+    const q = questions[questionIndex]
+    if (!q) return
+
+    if (q.capture_video && webcamStream) {
+      recordingQuestionRef.current = {
+        panelistId,
+        sampleNumber: selectedSample,
+        attribute: q.attribute ?? `q${q.id}`,
+        questionId: q.id,
+      }
+      startRecording(webcamStream)
+    } else {
+      // Moving off a capture_video question — stop and upload previous recording
+      stopAndUpload()
+    }
+  }, [screen, questionIndex]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleQuestionNext = useCallback(async () => {
     if (!session || selectedSample === null) return
     const questions = session.live_questions.filter((q) => q.question_type !== 'instruction' || true)
     const nextIndex = questionIndex + 1
 
     if (nextIndex < questions.length) {
+      // If current question had capture_video, stop recording before advancing
+      const currentQ = questions[questionIndex]
+      if (currentQ?.capture_video) stopAndUpload()
       setQuestionIndex(nextIndex)
     } else {
-      // Submit sample responses
+      // Last question — stop any active recording then submit
+      stopAndUpload()
       setSubmitting(true)
       try {
         const payloads: ResponsePayload[] = questions.map((q) => ({
@@ -547,7 +612,7 @@ export function DeepFlavor() {
         setSubmitting(false)
       }
     }
-  }, [session, questionIndex, questionResponses, panelistId, selectedSample, completedSamples])
+  }, [session, questionIndex, questionResponses, panelistId, selectedSample, completedSamples, stopAndUpload])
 
   const handleSampleDoneNext = () => {
     if (!session) return
@@ -981,18 +1046,7 @@ export function DeepFlavor() {
         <Button
           variant="subtle"
           color="gray"
-          onClick={() => {
-            setPanelistInput('')
-            setPanelistId('')
-            setSession(null)
-            setDemoIndex(0)
-            setDemoResponses({})
-            setSelectedSample(null)
-            setCompletedSamples([])
-            setQuestionIndex(0)
-            setQuestionResponses({})
-            setScreen('welcome')
-          }}
+          onClick={handleEndSession}
         >
           Start new session
         </Button>

@@ -19,6 +19,13 @@ def create_app(env: str | None = None) -> Flask:
     for bp in blueprints:
         app.register_blueprint(bp, url_prefix="/api")
 
+    # Ensure MinIO bucket exists and has public-read policy
+    try:
+        import storage
+        storage.get_client()
+    except Exception:
+        pass
+
     return app
 
 

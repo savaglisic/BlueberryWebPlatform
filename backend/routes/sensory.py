@@ -3,7 +3,7 @@ import json
 from flask import Blueprint, request, jsonify
 from sqlalchemy import inspect
 from extensions import db
-from models import SensoryQuestion, SensorySetup, SensorySample, SensoryResult, SensoryQuestionSet, DEMOGRAPHIC_QUESTIONS
+from models import SensoryQuestion, SensorySetup, SensorySample, SensoryResult, SensoryQuestionSet, SensoryVideo, DEMOGRAPHIC_QUESTIONS
 
 sensory_bp = Blueprint("sensory", __name__)
 
@@ -334,3 +334,12 @@ def delete_demo_result():
 @sensory_bp.route("/sensory_demographic_questions", methods=["GET"])
 def demographic_questions():
     return jsonify(DEMOGRAPHIC_QUESTIONS)
+
+
+@sensory_bp.route("/sensory_videos", methods=["GET"])
+def get_videos():
+    date_filter = request.args.get("date")
+    q = SensoryVideo.query
+    if date_filter:
+        q = q.filter(SensoryVideo.session_date == date_filter)
+    return jsonify([v.to_dict() for v in q.order_by(SensoryVideo.recorded_at).all()])

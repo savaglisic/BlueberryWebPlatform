@@ -11,14 +11,15 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   IconPlus, IconTrash, IconEdit, IconArrowUp, IconArrowDown,
   IconVideo, IconVideoOff, IconFlask, IconTable, IconDownload,
-  IconDeviceFloppy, IconFolderOpen,
+  IconDeviceFloppy, IconFolderOpen, IconPlayerPlay,
 } from '@tabler/icons-react'
-import type { SensoryQuestion, QuestionType, SensorySample, SensoryResult, SensoryQuestionSetSummary } from '../api/sensory'
+import type { SensoryQuestion, QuestionType, SensorySample, SensoryResult, SensoryQuestionSetSummary, SensoryVideo } from '../api/sensory'
 import {
   listQuestions, getSensorySetup, updateSensorySetup, addQuestion, updateQuestion,
   deleteQuestion, reorderQuestions, getSensoryResultDates, getSensoryResults,
   deleteBerryResult, deleteDemoResult,
   listQuestionSets, createQuestionSet, deleteQuestionSet, loadQuestionSet,
+  getSensoryVideos,
 } from '../api/sensory'
 
 const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
@@ -1290,12 +1291,46 @@ function downloadCsv(filename: string, headers: string[], csvRows: string[][]) {
   URL.revokeObjectURL(a.href)
 }
 
+function VideoPreviewModal({ videos, onClose }: { videos: SensoryVideo[]; onClose: () => void }) {
+  const [idx, setIdx] = useState(0)
+  const v = videos[idx]
+  return (
+    <Modal opened onClose={onClose} title="Video Preview" size="lg" centered>
+      <Stack gap="sm">
+        {videos.length > 1 && (
+          <Group gap="xs">
+            {videos.map((vid, i) => (
+              <Button
+                key={vid.id}
+                size="xs"
+                variant={i === idx ? 'filled' : 'light'}
+                onClick={() => setIdx(i)}
+              >
+                {vid.attribute ?? `Video ${i + 1}`}
+              </Button>
+            ))}
+          </Group>
+        )}
+        <video
+          key={v.object_name}
+          src={`/videos/${v.object_name}`}
+          controls
+          autoPlay
+          style={{ width: '100%', borderRadius: 8, background: '#000' }}
+        />
+        <Text size="xs" c="dimmed" style={{ wordBreak: 'break-all' }}>{v.object_name}</Text>
+      </Stack>
+    </Modal>
+  )
+}
+
 function ResultsTab() {
   const qc = useQueryClient()
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [subTab, setSubTab] = useState<string | null>('berry')
   const [page, setPage] = useState(1)
   const [downloading, setDownloading] = useState<'combined' | null>(null)
+  const [previewVideos, setPreviewVideos] = useState<SensoryVideo[] | null>(null)
 
   const handleDeleteBerry = (panelist_id: string, sample_number: string) => {
     modals.openConfirmModal({
@@ -1353,6 +1388,22 @@ function ResultsTab() {
     placeholderData: (prev) => prev,
   })
 
+  const { data: allVideos = [] } = useQuery({
+    queryKey: ['sensory-videos', selectedDate],
+    queryFn: () => getSensoryVideos(selectedDate!),
+    enabled: !!selectedDate,
+  })
+
+  // Group videos by panelist+sample for quick lookup
+  const videoMap = useMemo(() => {
+    const m: Record<string, SensoryVideo[]> = {}
+    for (const v of allVideos) {
+      const key = `${v.panelist_id}||${v.sample_number}`
+      ;(m[key] ??= []).push(v)
+    }
+    return m
+  }, [allVideos])
+
   useEffect(() => {
     if (dates.length > 0 && !selectedDate) setSelectedDate(dates[0])
   }, [dates, selectedDate])
@@ -1373,12 +1424,16 @@ function ResultsTab() {
       const { demoAttributes, rows: demoRows } = pivotDemoResults(all)
       const demoMap: Record<string, (typeof demoRows)[0]> = {}
       for (const r of demoRows) demoMap[r.panelist_id] = r
-      const headers = ['submitted_at_et', 'panelist_id', 'sample_number', 'real_identifier', ...demoAttributes, ...attributes]
-      const csvRows = berryRows.map((row) => [
-        toET(row.submitted_at), row.panelist_id, row.sample_number, sampleMap[row.sample_number] ?? '',
-        ...demoAttributes.map((a) => demoMap[row.panelist_id]?.cols[a] ?? ''),
-        ...attributes.map((a) => row.cols[a] ?? ''),
-      ])
+      const headers = ['submitted_at_et', 'panelist_id', 'sample_number', 'real_identifier', ...demoAttributes, ...attributes, 'video_paths']
+      const csvRows = berryRows.map((row) => {
+        const vids = videoMap[`${row.panelist_id}||${row.sample_number}`] ?? []
+        return [
+          toET(row.submitted_at), row.panelist_id, row.sample_number, sampleMap[row.sample_number] ?? '',
+          ...demoAttributes.map((a) => demoMap[row.panelist_id]?.cols[a] ?? ''),
+          ...attributes.map((a) => row.cols[a] ?? ''),
+          vids.map((v) => v.object_name).join(' | '),
+        ]
+      })
       downloadCsv(`combined_results_${selectedDate}.csv`, headers, csvRows)
     } finally { setDownloading(null) }
   }
@@ -1401,6 +1456,7 @@ function ResultsTab() {
 
   return (
     <Stack>
+      {previewVideos && <VideoPreviewModal videos={previewVideos} onClose={() => setPreviewVideos(null)} />}
       <Group justify="space-between" align="flex-end">
         <Select
           label="Panel date"
@@ -1440,24 +1496,43 @@ function ResultsTab() {
                         <Table.Th>Sample</Table.Th>
                         <Table.Th>Berry</Table.Th>
                         {attributes.map((col) => <Table.Th key={col}>{col}</Table.Th>)}
+                        <Table.Th>Videos</Table.Th>
                         <Table.Th w={40} />
                       </Table.Tr>
                     </Table.Thead>
                     <Table.Tbody>
-                      {berryRows.map((row) => (
-                        <Table.Tr key={`${row.panelist_id}||${row.sample_number}`}>
-                          <Table.Td style={{ color: 'var(--mantine-color-dimmed)', fontSize: '0.8rem' }}>{toET(row.submitted_at)}</Table.Td>
-                          <Table.Td>{row.panelist_id}</Table.Td>
-                          <Table.Td>{row.sample_number}</Table.Td>
-                          <Table.Td c="dimmed">{sampleMap[row.sample_number] ?? '—'}</Table.Td>
-                          {attributes.map((col) => <Table.Td key={col}>{row.cols[col] ?? '—'}</Table.Td>)}
-                          <Table.Td>
-                            <ActionIcon variant="subtle" color="red" size="sm" onClick={() => handleDeleteBerry(row.panelist_id, row.sample_number)}>
-                              <IconTrash size={13} />
-                            </ActionIcon>
-                          </Table.Td>
-                        </Table.Tr>
-                      ))}
+                      {berryRows.map((row) => {
+                        const rowVideos = videoMap[`${row.panelist_id}||${row.sample_number}`] ?? []
+                        return (
+                          <Table.Tr key={`${row.panelist_id}||${row.sample_number}`}>
+                            <Table.Td style={{ color: 'var(--mantine-color-dimmed)', fontSize: '0.8rem' }}>{toET(row.submitted_at)}</Table.Td>
+                            <Table.Td>{row.panelist_id}</Table.Td>
+                            <Table.Td>{row.sample_number}</Table.Td>
+                            <Table.Td c="dimmed">{sampleMap[row.sample_number] ?? '—'}</Table.Td>
+                            {attributes.map((col) => <Table.Td key={col}>{row.cols[col] ?? '—'}</Table.Td>)}
+                            <Table.Td>
+                              {rowVideos.length === 0 ? (
+                                <Text size="xs" c="dimmed">—</Text>
+                              ) : (
+                                <Group gap={4}>
+                                  {rowVideos.map((v) => (
+                                    <Tooltip key={v.id} label={v.attribute ?? v.object_name} withArrow>
+                                      <ActionIcon size="sm" variant="light" color="indigo" onClick={() => setPreviewVideos(rowVideos)}>
+                                        <IconPlayerPlay size={12} />
+                                      </ActionIcon>
+                                    </Tooltip>
+                                  ))}
+                                </Group>
+                              )}
+                            </Table.Td>
+                            <Table.Td>
+                              <ActionIcon variant="subtle" color="red" size="sm" onClick={() => handleDeleteBerry(row.panelist_id, row.sample_number)}>
+                                <IconTrash size={13} />
+                              </ActionIcon>
+                            </Table.Td>
+                          </Table.Tr>
+                        )
+                      })}
                     </Table.Tbody>
                   </Table>
                 </ScrollArea>

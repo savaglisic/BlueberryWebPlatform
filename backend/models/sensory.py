@@ -192,6 +192,31 @@ class SensoryQuestionSet(db.Model):
         }
 
 
+class SensoryVideo(db.Model):
+    __tablename__ = "sensory_videos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    session_date = db.Column(db.Date, nullable=False)
+    panelist_id = db.Column(db.String(50), nullable=False)
+    sample_number = db.Column(db.String(50), nullable=False)
+    question_id = db.Column(db.Integer)          # soft reference, no FK
+    attribute = db.Column(db.String(200))
+    object_name = db.Column(db.Text, nullable=False)  # full MinIO path
+    recorded_at = db.Column(db.DateTime, server_default=db.func.now())
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "session_date": self.session_date.isoformat(),
+            "panelist_id": self.panelist_id,
+            "sample_number": self.sample_number,
+            "question_id": self.question_id,
+            "attribute": self.attribute,
+            "object_name": self.object_name,
+            "recorded_at": self.recorded_at.isoformat() + "Z" if self.recorded_at else None,
+        }
+
+
 class SensoryResult(db.Model):
     __tablename__ = "sensory_results"
 

@@ -3,7 +3,7 @@ from .plant import PlantData, Genotype
 from .audit import AuditLog
 from .analytics import HistoricalRank, HistoricalYield, HistoricalScore, HistoricalFruitQuality
 from .config import OptionConfig, APIKey
-from .sensory import SensoryQuestion, SensorySetup, SensorySample, SensoryResult, SensoryQuestionSet, Panelist, DEMOGRAPHIC_QUESTIONS
+from .sensory import SensoryQuestion, SensorySetup, SensorySample, SensoryResult, SensoryQuestionSet, SensoryVideo, Panelist, DEMOGRAPHIC_QUESTIONS
 
 __all__ = [
     "User",
@@ -23,5 +23,6 @@ __all__ = [
     "Panelist",
     "DEMOGRAPHIC_QUESTIONS",
     "SensoryQuestionSet",
+    "SensoryVideo",
     "AuditLog",
 ]

@@ -100,3 +100,17 @@ export const deleteQuestionSet = (id: number) =>
 
 export const loadQuestionSet = (id: number) =>
   client.post(`/sensory_question_sets/${id}/load`).then<SensoryQuestion[]>((r) => r.data)
+
+export interface SensoryVideo {
+  id: number
+  session_date: string
+  panelist_id: string
+  sample_number: string
+  question_id: number | null
+  attribute: string | null
+  object_name: string
+  recorded_at: string
+}
+
+export const getSensoryVideos = (date: string) =>
+  client.get('/sensory_videos', { params: { date } }).then<SensoryVideo[]>((r) => r.data)
