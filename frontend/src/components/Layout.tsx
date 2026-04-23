@@ -28,6 +28,7 @@ import {
   IconLayoutSidebarLeftExpand,
   IconMicroscope,
   IconLayoutDashboard,
+  IconUpload,
 } from '@tabler/icons-react'
 
 const allNavItems = [
@@ -38,6 +39,7 @@ const allNavItems = [
   { label: 'Yield Summary', path: '/fq-database/yield-summary', icon: IconChartBar, adminOnly: true },
   { label: 'Search Pedigree', path: '/search-pedigree', icon: IconSearch, adminOnly: true },
   { label: 'Sensory Questions', path: '/sensory-panels', icon: IconMicroscope, adminOnly: true },
+  { label: 'Bulk Upload', path: '/bulk-upload', icon: IconUpload, adminOnly: true },
   { label: 'Configure', path: '/configure', icon: IconSettings, adminOnly: true },
 ]
 

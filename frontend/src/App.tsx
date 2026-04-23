@@ -10,6 +10,7 @@ import { SensoryPanels } from './pages/SensoryPanels'
 import { DeepFlavor } from './pages/DeepFlavor'
 import { useUser } from './context/UserContext'
 import { Overview } from './pages/Overview'
+import { BulkUpload } from './pages/BulkUpload'
 
 function AdminRoute({ element }: { element: React.ReactElement }) {
   const { isAdmin, loading } = useUser()
@@ -48,6 +49,7 @@ export default function App() {
               <Route path="/fq-database/yield-summary" element={<AdminRoute element={<FQDatabase />} />} />
               <Route path="/search-pedigree" element={<AdminRoute element={<SearchPedigree />} />} />
               <Route path="/sensory-panels" element={<AdminRoute element={<SensoryPanels />} />} />
+              <Route path="/bulk-upload" element={<AdminRoute element={<BulkUpload />} />} />
               <Route path="/configure" element={<AdminRoute element={<Configure />} />} />
               <Route path="*" element={<DefaultRoute />} />
             </Routes>
