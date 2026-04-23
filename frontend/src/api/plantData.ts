@@ -75,3 +75,9 @@ export const downloadPlantDataCsv = () =>
 
 export const downloadYield = () =>
   client.get('/download_yield', { responseType: 'blob' }).then((r) => r.data)
+
+export const bulkCheck = (barcodes: string[]): Promise<Record<string, PlantRecord>> =>
+  client.post('/bulk_check', { barcodes }).then((r) => r.data)
+
+export const bulkUpload = (records: (Partial<PlantRecord> & { barcode: string })[]) =>
+  client.post('/bulk_upload', { records }).then((r) => r.data)

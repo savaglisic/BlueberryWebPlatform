@@ -231,6 +231,46 @@ def download_plant_data_csv():
     )
 
 
+@plant_data_bp.route("/bulk_check", methods=["POST"])
+def bulk_check():
+    barcodes = request.get_json().get("barcodes", [])
+    if not barcodes:
+        return jsonify({}), 200
+    records = PlantData.query.filter(PlantData.barcode.in_(barcodes)).all()
+    return jsonify({r.barcode: r.to_dict() for r in records})
+
+
+@plant_data_bp.route("/bulk_upload", methods=["POST"])
+def bulk_upload():
+    records = request.get_json().get("records", [])
+    if not records:
+        return jsonify({"error": "No records provided"}), 400
+
+    results = []
+    for data in records:
+        barcode = data.get("barcode")
+        if not barcode:
+            continue
+        record = PlantData.query.filter_by(barcode=barcode).first()
+        changed_fields = [f for f in PLANT_FIELDS if f in data]
+        if record:
+            for field in changed_fields:
+                setattr(record, field, data[field])
+            record.updated_at = datetime.now(timezone.utc)
+            _write_audit(barcode, "field_updated", changed_fields)
+            results.append({"barcode": barcode, "action": "updated"})
+        else:
+            record = PlantData(barcode=barcode)
+            for field in changed_fields:
+                setattr(record, field, data[field])
+            db.session.add(record)
+            _write_audit(barcode, "barcode_created", changed_fields)
+            results.append({"barcode": barcode, "action": "created"})
+
+    db.session.commit()
+    return jsonify({"status": "ok", "results": results})
+
+
 @plant_data_bp.route("/audit_log", methods=["GET"])
 def get_audit_log():
     barcode = request.args.get("barcode")
