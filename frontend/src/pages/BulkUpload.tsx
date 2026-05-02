@@ -300,11 +300,6 @@ export function BulkUpload() {
       setMappingError('No column is mapped to "barcode". Please assign one.')
       return
     }
-    const stageIsMapped = mappings.some((m) => m.dbField === 'stage')
-    if (!stageIsMapped && !stageOverride) {
-      setMappingError('Stage is required. Either map a column to "stage" or select a stage override below.')
-      return
-    }
     setMappingError(null)
     setIsChecking(true)
     setCheckProgress(0)
@@ -533,8 +528,7 @@ export function BulkUpload() {
               <Alert icon={<IconAlertTriangle size={16} />} color="orange" variant="light" title="Stage not found in file">
                 <Stack gap="xs">
                   <Text size="sm">
-                    Your file has no column that maps to <strong>stage</strong>, which is required.
-                    Select a stage to apply to all rows, or add a stage column to your file.
+                    Your file has no column mapped to <strong>stage</strong>. Optionally select a stage to apply to all rows — leave blank to keep existing stages.
                   </Text>
                   <Select
                     placeholder="Select stage for all rows…"
