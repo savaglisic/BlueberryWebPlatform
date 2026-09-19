@@ -20,15 +20,23 @@ Cloudflare Access on the main application hostname.
 
 1. Run `npm run ci:all` after cloning.
 2. Copy `.dev.vars.example` to `.dev.vars` and set a local Access identity.
-3. Run `./dev.sh --migrate` to apply pending migrations to isolated local D1.
-4. Run `./dev.sh` and open `http://127.0.0.1:5173`.
+3. Run `./dev.sh seed-db` to refresh isolated local D1 from a read-only
+   production export (or `./dev.sh migrate` for a new empty database).
+4. Run `./dev.sh` and open `http://127.0.0.1:5173`. The command returns after
+   starting Vite in the background; use `./dev.sh logs`, `status`, or `stop` to
+   manage it.
 
 The machine's persistent Cloudflare Tunnel routes `preview.glisic.net` to the
-standard development port, `127.0.0.1:5173`. Starting `./dev.sh` or `npm run
-dev` therefore makes the local Vite/Worker HMR server available through the
-preview hostname automatically. Cloudflare Access applies the same identity
-providers and allow rules as `dev.glisic.net`. Stopping Vite leaves no preview
-origin listening, and local D1/R2 bindings remain isolated from production.
+standard development port, `127.0.0.1:5173`. Starting `./dev.sh` makes the local
+Vite/Worker HMR server available through the preview hostname automatically.
+Cloudflare Access applies the same identity providers and allow rules as
+`dev.glisic.net`. `./dev.sh stop` leaves no preview origin listening, and local
+D1/R2 bindings remain isolated from production.
+
+`./dev.sh seed-db` exports D1 without consuming row writes, validates the new
+SQLite database, backs up the previous local D1 state under `.wrangler/backups`,
+and atomically installs the seed. Local R2 objects are preserved. Cloudflare may
+briefly make D1 unavailable while it creates the consistent export.
 
 The Cloudflare Vite plugin serves the React application and Worker together with
 HMR. D1 and R2 are emulated locally under `.wrangler/state`; remote bindings are

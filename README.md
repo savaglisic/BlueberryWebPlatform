@@ -12,7 +12,7 @@ A Cloudflare-native application consisting of:
 ```sh
 npm run ci:all
 cp .dev.vars.example .dev.vars
-./dev.sh --migrate
+./dev.sh seed-db
 ./dev.sh
 ```
 
@@ -20,8 +20,12 @@ Development runs on `http://127.0.0.1:5173` with React and Worker HMR. The
 machine's persistent Cloudflare Tunnel also makes that same server available at
 `https://preview.glisic.net` behind GitHub-backed Cloudflare Access. All local
 D1/R2 state is isolated under `.wrangler/state`; development does not connect to
-the remote production bindings. Stopping Vite makes the preview origin
-unavailable without changing the tunnel.
+the remote production bindings during normal use. `./dev.sh` starts Vite in the
+background; use `./dev.sh status`, `./dev.sh logs`, and `./dev.sh stop` to manage
+it. `./dev.sh seed-db` takes a read-only production D1 snapshot, preserves the
+previous local D1 state under `.wrangler/backups`, and replaces only local D1.
+The export consumes no D1 row writes, though Cloudflare may briefly make the
+small production database unavailable while creating a consistent export.
 
 ## Checks
 
