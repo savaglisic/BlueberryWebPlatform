@@ -4,6 +4,7 @@ export interface Env {
   ASSETS: Fetcher
   ACCESS_TEAM_DOMAIN?: string
   ACCESS_AUD?: string
+  TRUST_ACCESS_EMAIL_HEADER?: string
   DEV_USER_EMAIL?: string
 }
 

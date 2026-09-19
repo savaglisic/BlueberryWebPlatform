@@ -21,6 +21,11 @@ function normalizedEmail(value: unknown): string {
 }
 
 export async function accessEmail(request: Request, env: Env): Promise<string> {
+  const authenticatedEmail = request.headers.get('Cf-Access-Authenticated-User-Email')
+  if (env.TRUST_ACCESS_EMAIL_HEADER === 'true' && authenticatedEmail) {
+    return normalizedEmail(authenticatedEmail)
+  }
+
   const assertion = request.headers.get('Cf-Access-Jwt-Assertion')
   if (assertion) {
     if (!env.ACCESS_TEAM_DOMAIN || !env.ACCESS_AUD) {
@@ -48,7 +53,7 @@ export async function accessEmail(request: Request, env: Env): Promise<string> {
   // Backward compatibility for an origin where Access injects an identity
   // header but JWT verification has not yet been configured.
   if (!env.ACCESS_AUD) {
-    return normalizedEmail(request.headers.get('Cf-Access-Authenticated-User-Email'))
+    return normalizedEmail(authenticatedEmail)
   }
   return ''
 }

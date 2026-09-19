@@ -40,10 +40,12 @@ briefly make D1 unavailable while it creates the consistent export.
 
 Preview requests are authenticated twice: Access enforces the application
 policy at the edge, and the local tunnel validates the signed assertion before
-forwarding it to Vite. The Worker then validates the assertion against the
-preview application's audience, reads its email claim, and applies the same
-database-backed access-level logic as production. Direct localhost requests use
-the ignored `DEV_USER_EMAIL` value because they do not pass through Access.
+forwarding it to Vite. Because Vite is bound only to loopback, the local Worker
+can trust cloudflared's authenticated-email header and apply the same
+database-backed access-level logic as production. Production independently
+validates the signed assertion against its Access audience. Direct localhost
+requests use the ignored `DEV_USER_EMAIL` value because they do not pass through
+Access.
 
 The Cloudflare Vite plugin serves the React application and Worker together with
 HMR. D1 and R2 are emulated locally under `.wrangler/state`; remote bindings are

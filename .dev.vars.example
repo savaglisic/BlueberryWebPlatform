@@ -5,3 +5,5 @@ DEV_USER_EMAIL=you@example.com
 # verification metadata, not secrets.
 ACCESS_TEAM_DOMAIN=https://sava-dev.cloudflareaccess.com
 ACCESS_AUD=cd597a3a06bd03b14ff9d8528d00eaa1fcc5c776ce51b9564aadbf10c4715201
+# Safe only because preview is loopback-bound and cloudflared validates Access.
+TRUST_ACCESS_EMAIL_HEADER=true
