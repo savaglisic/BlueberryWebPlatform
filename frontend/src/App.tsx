@@ -8,7 +8,7 @@ import { SearchPedigree } from './pages/SearchPedigree'
 import { Configure } from './pages/Configure'
 import { SensoryPanels } from './pages/SensoryPanels'
 import { DeepFlavor } from './pages/DeepFlavor'
-import { useUser } from './context/UserContext'
+import { useUser } from './context/useUser'
 import { Overview } from './pages/Overview'
 import { BulkUpload } from './pages/BulkUpload'
 

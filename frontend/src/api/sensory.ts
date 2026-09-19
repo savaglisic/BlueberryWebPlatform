@@ -82,6 +82,13 @@ export const getSensoryResults = (date: string, page: number, perPage = 50) =>
     .get('/sensory_results', { params: { date, page, per_page: perPage } })
     .then<SensoryResultsPage>((r) => r.data)
 
+export const getSensoryResultsExportPage = (date: string, afterId?: number) =>
+  client
+    .get<{ results: SensoryResult[]; next_cursor: number; done: boolean }>('/sensory_results_export', {
+      params: { date, after_id: afterId, limit: 500 },
+    })
+    .then((r) => r.data)
+
 export interface SensoryQuestionSetSummary {
   id: number
   name: string

@@ -16,7 +16,7 @@ import {
 import type { SensoryQuestion, QuestionType, SensorySample, SensoryResult, SensoryQuestionSetSummary, SensoryVideo } from '../api/sensory'
 import {
   listQuestions, getSensorySetup, updateSensorySetup, addQuestion, updateQuestion,
-  deleteQuestion, reorderQuestions, getSensoryResultDates, getSensoryResults,
+  deleteQuestion, reorderQuestions, getSensoryResultDates, getSensoryResults, getSensoryResultsExportPage,
   deleteBerryResult, deleteDemoResult,
   listQuestionSets, createQuestionSet, deleteQuestionSet, loadQuestionSet,
   getSensoryVideos,
@@ -1412,8 +1412,15 @@ function ResultsTab() {
 
   const fetchAll = async () => {
     if (!selectedDate) return []
-    const first = await getSensoryResults(selectedDate, 1, 10000)
-    return first.results
+    const results: SensoryResult[] = []
+    let afterId: number | undefined
+    for (;;) {
+      const pageResult = await getSensoryResultsExportPage(selectedDate, afterId)
+      results.push(...pageResult.results)
+      if (pageResult.done) break
+      afterId = pageResult.next_cursor
+    }
+    return results
   }
 
   const handleDownloadCombined = async () => {

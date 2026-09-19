@@ -1,5 +1,10 @@
-import client from './client'
+import axios from 'axios'
 import type { SensoryQuestion } from './sensory'
+
+const client = axios.create({
+  baseURL: import.meta.env.VITE_DEEPFLAVOR_API_URL || '/api',
+  headers: { 'Content-Type': 'application/json' },
+})
 
 export interface PanelistRecord {
   id: number

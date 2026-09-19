@@ -1,0 +1,2 @@
+# Copy to .dev.vars to emulate the Cloudflare Access identity in local Wrangler.
+DEV_USER_EMAIL=you@example.com

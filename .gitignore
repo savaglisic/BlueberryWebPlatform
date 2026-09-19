@@ -1,36 +1,16 @@
-# Database exports
-database_exports/
-
-# Old defunct code — kept for reference only
-BlueWeb-main/
-BlueWebBackend-main/
-deepflavor-main-old/
-
-# Frontend
+# Dependencies and build output
+node_modules/
 frontend/node_modules/
 frontend/dist/
 frontend/.env
 
-# Backend
-backend/.env
-backend/venv/
-backend/.venv/
-backend/.python-version
-
-# Python artifacts (anywhere in repo)
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.so
-*.egg
-*.egg-info/
-*.whl
-.mypy_cache/
-.pytest_cache/
-
-# Docker
+# Local environment
 .env
+.dev.vars
 
 # OS
 .DS_Store
+
+# Cloudflare local state and uncommitted cutover artifacts
+.wrangler/
+.migration-work/

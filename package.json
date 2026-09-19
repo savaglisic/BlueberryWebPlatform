@@ -1,0 +1,34 @@
+{
+  "name": "blueberry-web-platform",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ci:all": "npm ci && npm --prefix frontend ci",
+    "build": "npm --prefix frontend run build",
+    "dev": "npm --prefix frontend run dev -- --host 127.0.0.1 --port ${BLUEBERRY_DEV_PORT:-5173} --strictPort",
+    "preview": "npm --prefix frontend run preview -- --host 127.0.0.1 --port ${BLUEBERRY_DEV_PORT:-5173} --strictPort",
+    "typecheck": "tsc --noEmit",
+    "deploy:cloudflare": "npm run build && wrangler deploy --config frontend/dist/blueberry_web/wrangler.json",
+    "deploy:fruitfirm": "wrangler deploy --config wrangler.fruitfirm.jsonc",
+    "deploy:deepflavor": "wrangler deploy --config wrangler.deepflavor.jsonc",
+    "db:migrate:local": "wrangler d1 migrations apply blueberry-web --local",
+    "db:migrate:remote": "wrangler d1 migrations apply blueberry-web --remote"
+  },
+  "dependencies": {
+    "hono": "^4.9.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260908.1",
+    "@types/node": "^24.3.1",
+    "typescript": "^5.9.2",
+    "wrangler": "^4.130.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "workerd@1.20260908.1": true
+  },
+  "overrides": {
+    "sharp": "0.35.4"
+  }
+}

@@ -19,6 +19,7 @@ import {
   TextInput,
 } from '@mantine/core'
 import { IconAlertCircle, IconCheck, IconArrowRight, IconCup } from '@tabler/icons-react'
+import { isAxiosError } from 'axios'
 import type { SensoryQuestion } from '../api/sensory'
 import {
   startSession,
@@ -517,8 +518,8 @@ export function DeepFlavor() {
         webcamNextScreen.current = 'sample_select'
       }
       setScreen('webcam_check')
-    } catch (e: any) {
-      setLoadError(e?.response?.data?.error || 'Failed to load session. Please try again.')
+    } catch (error: unknown) {
+      setLoadError(isAxiosError<{ error?: string }>(error) ? error.response?.data?.error || 'Failed to load session. Please try again.' : 'Failed to load session. Please try again.')
       setScreen('welcome')
     }
   }, [panelistInput])

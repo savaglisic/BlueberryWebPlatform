@@ -16,7 +16,7 @@ import {
 } from '@mantine/core'
 import { IconLeaf, IconAlertCircle } from '@tabler/icons-react'
 import { login, updateUser, getUserGroup } from '../api/auth'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 
 export function Login() {
   const [isNewUser, setIsNewUser] = useState(false)

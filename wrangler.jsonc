@@ -1,0 +1,34 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "blueberry-web",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-09-09",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "blueberry-web.com/*",
+      "zone_name": "blueberry-web.com"
+    }
+  ],
+  "observability": { "enabled": true },
+  "assets": {
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/videos/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "blueberry-web",
+      "database_id": "3df15af4-49e5-4413-9fce-6e2f34e120c0",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "VIDEOS",
+      "bucket_name": "blueberry-web-videos"
+    }
+  ]
+}

@@ -68,7 +68,7 @@ export function AddSamples() {
     // Only accept digits, truncate to 7
     const digits = scanned.replace(/\D/g, '').slice(0, 7)
     if (!digits) return
-    setForm((_f) => ({
+    setForm(() => ({
       ...EMPTY_FORM,
       ...(rapidFire ? rapidFireMemory.current : {}),
       barcode: digits,
@@ -91,7 +91,7 @@ export function AddSamples() {
 
     // If barcode changed after previously being 7 digits, reset form
     if (prev.length === 7 && cur !== prev) {
-      setForm((_f) => ({
+      setForm(() => ({
         ...EMPTY_FORM,
         ...(rapidFire ? rapidFireMemory.current : {}),
         barcode: cur,
@@ -181,12 +181,12 @@ export function AddSamples() {
 
     setSubmitting(true)
     try {
-      const payload: Record<string, unknown> = { ...form }
+      const payload: Record<string, unknown> & { barcode: string } = { ...form }
       // Convert empty strings to null
       Object.keys(payload).forEach((k) => {
         if (payload[k] === '') payload[k] = null
       })
-      await addPlantData(payload as any)
+      await addPlantData(payload)
       notifications.show({ message: 'Sample saved successfully', color: 'green' })
       if (rapidFire) {
         rapidFireMemory.current = {

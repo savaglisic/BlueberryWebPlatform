@@ -375,7 +375,7 @@ export function BulkUpload() {
       setIsChecking(false)
       notifications.show({ color: 'red', title: 'Error', message: 'Failed to check existing barcodes.' })
     }
-  }, [mappings, parsedRows])
+  }, [mappings, parsedRows, stageOverride])
 
   // ── Upload ────────────────────────────────────────────────────────────────
 

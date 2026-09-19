@@ -38,7 +38,7 @@ export interface Filter {
   value: string
 }
 
-export const addPlantData = (data: Partial<PlantRecord> & { barcode: string }) =>
+export const addPlantData = (data: { barcode: string; [key: string]: unknown }) =>
   client.post('/add_plant_data', data).then((r) => r.data)
 
 export const checkBarcode = (barcode: string) =>
@@ -70,8 +70,41 @@ export const getPlantData = (
 export const pivotFruitQuality = (page: number, pageSize: number, search: string) =>
   client.get('/pivot_fruit_quality', { params: { page, pageSize, search } }).then((r) => r.data)
 
-export const downloadPlantDataCsv = () =>
-  client.get('/download_plant_data_csv', { responseType: 'blob' }).then((r) => r.data)
+const csvColumns: (keyof PlantRecord)[] = [
+  'id', 'barcode', 'genotype', 'stage', 'site', 'block', 'project', 'post_harvest',
+  'bush_plant_number', 'notes', 'mass', 'x_berry_mass', 'number_of_berries', 'ph',
+  'brix', 'juicemass', 'tta', 'mladded', 'avg_firmness', 'avg_diameter',
+  'sd_firmness', 'sd_diameter', 'box', 'firm_category', 'size_category', 'timestamp',
+  'fruitfirm_timestamp', 'updated_at', 'week',
+]
+
+const csvCell = (value: unknown) => {
+  if (value == null) return ''
+  const text = String(value)
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
+}
+
+// Assemble large exports in the browser. This keeps each Worker invocation
+// comfortably below free-tier CPU/response limits.
+export const downloadPlantDataCsv = async (yearPrefix?: string): Promise<Blob> => {
+  const records: PlantRecord[] = []
+  let afterId: number | undefined
+  for (;;) {
+    const result = await client
+      .get<{ data: PlantRecord[]; next_cursor: number; done: boolean }>('/export_plant_data_page', {
+        params: { after_id: afterId, limit: 250, year_prefix: yearPrefix },
+      })
+      .then((response) => response.data)
+    records.push(...result.data)
+    if (result.done) break
+    afterId = result.next_cursor
+  }
+  const lines = [
+    csvColumns.join(','),
+    ...records.map((record) => csvColumns.map((column) => csvCell(record[column])).join(',')),
+  ]
+  return new Blob([lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' })
+}
 
 export const downloadYield = () =>
   client.get('/download_yield', { responseType: 'blob' }).then((r) => r.data)
@@ -79,5 +112,11 @@ export const downloadYield = () =>
 export const bulkCheck = (barcodes: string[]): Promise<Record<string, PlantRecord>> =>
   client.post('/bulk_check', { barcodes }).then((r) => r.data)
 
-export const bulkUpload = (records: (Partial<PlantRecord> & { barcode: string })[]) =>
-  client.post('/bulk_upload', { records }).then((r) => r.data)
+export const bulkUpload = async (records: (Partial<PlantRecord> & { barcode: string })[]) => {
+  const results: { barcode: string; action: string }[] = []
+  for (let offset = 0; offset < records.length; offset += 20) {
+    const response = await client.post('/bulk_upload', { records: records.slice(offset, offset + 20) })
+    results.push(...response.data.results)
+  }
+  return { status: 'ok', results }
+}

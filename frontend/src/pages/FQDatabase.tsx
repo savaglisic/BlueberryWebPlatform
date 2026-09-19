@@ -12,7 +12,7 @@ import { modals } from '@mantine/modals'
 import { IconDownload, IconTrash, IconEdit, IconPlus, IconX, IconSearch, IconColumns } from '@tabler/icons-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { PlantRecord, Filter } from '../api/plantData'
-import { getPlantData, deletePlantData, addPlantData, pivotFruitQuality } from '../api/plantData'
+import { getPlantData, deletePlantData, addPlantData, pivotFruitQuality, downloadPlantDataCsv } from '../api/plantData'
 import { getOptions } from '../api/options'
 import { SelectWithAdd } from '../components/SelectWithAdd'
 
@@ -107,7 +107,7 @@ function EditModal({ plant, onClose }: { plant: PlantRecord; onClose: () => void
   const handleSave = async () => {
     setSaving(true)
     try {
-      await addPlantData({ ...form, barcode: plant.barcode } as any)
+      await addPlantData({ ...form, barcode: plant.barcode })
       qc.invalidateQueries({ queryKey: ['plant-data'] })
       notifications.show({ message: 'Record updated', color: 'green' })
       onClose()
@@ -197,7 +197,8 @@ function ColumnPicker({ visible, onChange }: { visible: Set<keyof PlantRecord>; 
   const toggle = (key: keyof PlantRecord, required?: boolean) => {
     if (required) return
     const next = new Set(visible)
-    next.has(key) ? next.delete(key) : next.add(key)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
     onChange(next)
     saveVisibleCols(next)
   }
@@ -248,6 +249,7 @@ export function FQDatabase() {
   const [filters, setFilters] = useState<Filter[]>([])
   const [activeFilters, setActiveFilters] = useState<Filter[]>([])
   const [currentYearOnly, setCurrentYearOnly] = useState(true)
+  const [exporting, setExporting] = useState(false)
   const [editPlant, setEditPlant] = useState<PlantRecord | null>(null)
   const [editOpen, { open: openEdit, close: closeEdit }] = useDisclosure(false)
   const [yieldSearch, setYieldSearch] = useState('')
@@ -294,20 +296,29 @@ export function FQDatabase() {
     })
   }
 
-  // Stream download directly through the browser — no JS buffering, handles any dataset size
-  const handleDownload = (type: 'data' | 'yield') => {
-    let url: string
+  const handleDownload = async (type: 'data' | 'yield') => {
     if (type === 'data') {
-      const params = new URLSearchParams()
-      if (currentYearOnly) params.set('year_prefix', currentYearPrefix)
-      const qs = params.toString()
-      url = `/api/download_plant_data_csv${qs ? `?${qs}` : ''}`
-    } else {
-      url = '/api/download_yield'
+      setExporting(true)
+      try {
+        const blob = await downloadPlantDataCsv(currentYearOnly ? currentYearPrefix : undefined)
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'plant_data.csv'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        setTimeout(() => URL.revokeObjectURL(url), 0)
+      } catch {
+        notifications.show({ message: 'Export failed', color: 'red' })
+      } finally {
+        setExporting(false)
+      }
+      return
     }
     const a = document.createElement('a')
-    a.href = url
-    a.download = type === 'data' ? 'plant_data.csv' : 'yield.csv'
+    a.href = '/api/download_yield'
+    a.download = 'yield.csv'
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -339,6 +350,7 @@ export function FQDatabase() {
             leftSection={<IconDownload size={16} />}
             variant="light"
             size="sm"
+            loading={exporting}
             onClick={() => handleDownload(view === 'yield' ? 'yield' : 'data')}
           >
             Export CSV

@@ -7,6 +7,7 @@ import { notifications } from '@mantine/notifications'
 import { modals } from '@mantine/modals'
 import { IconTrash, IconPlus } from '@tabler/icons-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 import { getWhitelist, addToWhitelist, removeFromWhitelist } from '../api/whitelist'
 import { getOptions, addOption, deleteOption } from '../api/options'
 
@@ -102,8 +103,8 @@ function OptionsTab() {
       qc.invalidateQueries({ queryKey: ['options'] })
       setNewText('')
       notifications.show({ message: 'Option added', color: 'green' })
-    } catch (err: any) {
-      const msg = err?.response?.data?.error ?? 'Failed to add option'
+    } catch (err: unknown) {
+      const msg = isAxiosError<{ error?: string }>(err) ? err.response?.data?.error ?? 'Failed to add option' : 'Failed to add option'
       notifications.show({ message: msg, color: 'red' })
     } finally {
       setAdding(false)

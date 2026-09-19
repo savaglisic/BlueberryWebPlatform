@@ -1,19 +1,6 @@
-import { createContext, useContext, useState } from 'react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
-
-interface AuthUser {
-  email: string
-  user_group: string
-}
-
-interface AuthContextType {
-  user: AuthUser | null
-  setUser: (user: AuthUser | null) => void
-  logout: () => void
-  isAdmin: boolean
-}
-
-const AuthContext = createContext<AuthContextType | null>(null)
+import { AuthContext, type AuthUser } from './auth'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<AuthUser | null>(() => {
@@ -37,10 +24,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   )
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
-  return ctx
 }

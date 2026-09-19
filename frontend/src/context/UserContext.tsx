@@ -1,13 +1,6 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import client from '../api/client'
-
-interface UserInfo {
-  email: string
-  isAdmin: boolean
-  loading: boolean
-}
-
-const UserContext = createContext<UserInfo>({ email: '', isAdmin: false, loading: true })
+import { UserContext, type UserInfo } from './user'
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserInfo>({ email: '', isAdmin: false, loading: true })
@@ -20,5 +13,3 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   return <UserContext.Provider value={user}>{children}</UserContext.Provider>
 }
-
-export const useUser = () => useContext(UserContext)

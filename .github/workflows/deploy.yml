@@ -1,4 +1,4 @@
-name: Deploy
+name: Deploy Cloudflare production
 
 on:
   push:
@@ -6,49 +6,68 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      action:
-        description: 'Action to perform'
+      apply_migrations:
+        description: Apply pending remote D1 migrations
         required: true
-        default: 'deploy'
-        type: choice
-        options:
-          - deploy
-          - restart
-          - stop
+        default: true
+        type: boolean
+
+concurrency:
+  group: cloudflare-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Deploy App
-    if: github.event_name == 'push' || github.event.inputs.action == 'deploy'
-    runs-on: self-hosted
+    name: Validate and deploy Cloudflare Workers
+    runs-on: [self-hosted, Linux, X64]
+    permissions:
+      contents: read
+    timeout-minutes: 20
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Pull latest images and start services
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm run ci:all
+
+      - name: Verify Cloudflare authentication
+        run: npx wrangler whoami
+
+      - name: Lint
+        run: npm --prefix frontend run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Build frontend and Worker
+        run: npm run build
+
+      - name: Apply pending D1 migrations
+        if: github.event_name == 'push' || inputs.apply_migrations
+        run: npm run db:migrate:remote
+
+      # Supporting APIs go first so the newly built browser client never points
+      # at an endpoint that has not been deployed yet.
+      - name: Deploy FruitFirm ingestion Worker
+        run: npm run deploy:fruitfirm
+
+      - name: Deploy public DeepFlavor API Worker
+        run: npm run deploy:deepflavor
+
+      - name: Deploy application Worker
+        run: npx wrangler deploy --config frontend/dist/blueberry_web/wrangler.json
+
+      - name: Smoke-test production
         run: |
-          docker compose pull --ignore-buildable
-          docker compose up --build --force-recreate -d
-
-      - name: Run database migrations
-        run: |
-          # Wait for the backend container to be healthy, then apply any pending migrations.
-          docker compose exec -T backend flask db upgrade
-
-  restart:
-    name: Restart App
-    if: github.event.inputs.action == 'restart'
-    runs-on: self-hosted
-    steps:
-      - name: Restart services
-        working-directory: ${{ github.workspace }}
-        run: docker compose restart
-
-  stop:
-    name: Stop App
-    if: github.event.inputs.action == 'stop'
-    runs-on: self-hosted
-    steps:
-      - name: Stop services
-        working-directory: ${{ github.workspace }}
-        run: docker compose down
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 20 https://blueberry-web.com/deepflavor)" = "200"
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 20 https://deepflavor-api.blueberry-web.com/)" = "404"

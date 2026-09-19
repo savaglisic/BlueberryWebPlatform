@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { useUser } from '../context/UserContext'
+import { useUser } from '../context/useUser'
 import darkLogo from '../assets/whitetextnobg_logo.webp'
 import lightLogo from '../assets/blacktextnobg_logo.webp'
 import berryLogo from '../assets/berrylogo.webp'
