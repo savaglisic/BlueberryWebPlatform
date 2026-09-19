@@ -27,6 +27,12 @@ previous local D1 state under `.wrangler/backups`, and replaces only local D1.
 The export consumes no D1 row writes, though Cloudflare may briefly make the
 small production database unavailable while creating a consistent export.
 
+Requests through either production or `preview.glisic.net` carry a signed
+Cloudflare Access assertion. The Worker validates the assertion for that
+hostname, reads the verified email claim, and uses the local or production
+`email_whitelist` table to determine which interface features are available.
+`DEV_USER_EMAIL` is used only when accessing the localhost server directly.
+
 ## Checks
 
 ```sh

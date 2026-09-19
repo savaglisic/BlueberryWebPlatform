@@ -38,6 +38,13 @@ SQLite database, backs up the previous local D1 state under `.wrangler/backups`,
 and atomically installs the seed. Local R2 objects are preserved. Cloudflare may
 briefly make D1 unavailable while it creates the consistent export.
 
+Preview requests are authenticated twice: Access enforces the application
+policy at the edge, and the local tunnel validates the signed assertion before
+forwarding it to Vite. The Worker then validates the assertion against the
+preview application's audience, reads its email claim, and applies the same
+database-backed access-level logic as production. Direct localhost requests use
+the ignored `DEV_USER_EMAIL` value because they do not pass through Access.
+
 The Cloudflare Vite plugin serves the React application and Worker together with
 HMR. D1 and R2 are emulated locally under `.wrangler/state`; remote bindings are
 disabled in `frontend/vite.config.ts`.

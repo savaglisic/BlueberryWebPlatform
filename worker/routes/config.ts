@@ -3,11 +3,12 @@ import type { Env, JsonRecord } from '../types'
 import { all, boolFields, first, questionRow, resultMeta } from '../db'
 import { errorJson, generatedId, likePattern } from '../http'
 import { hashPassword, verifyPassword } from '../auth'
+import { accessEmail } from '../access'
 
 export const configRoutes = new Hono<{ Bindings: Env }>()
 
 configRoutes.get('/me', async (c) => {
-  const email = c.req.header('Cf-Access-Authenticated-User-Email') ?? c.env.DEV_USER_EMAIL ?? ''
+  const email = await accessEmail(c.req.raw, c.env)
   const allowed = email ? await first(c.env.DB.prepare('SELECT 1 FROM email_whitelist WHERE email = ?').bind(email)) : null
   return c.json({ email, isAdmin: Boolean(allowed) })
 })

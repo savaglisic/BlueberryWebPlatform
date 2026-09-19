@@ -1,2 +1,7 @@
 # Copy to .dev.vars to emulate the Cloudflare Access identity in local Wrangler.
 DEV_USER_EMAIL=you@example.com
+
+# preview.glisic.net Cloudflare Access application. These values are public
+# verification metadata, not secrets.
+ACCESS_TEAM_DOMAIN=https://sava-dev.cloudflareaccess.com
+ACCESS_AUD=cd597a3a06bd03b14ff9d8528d00eaa1fcc5c776ce51b9564aadbf10c4715201

@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { Env, JsonRecord } from '../types'
 import { all, first } from '../db'
 import { csvResponse, errorJson, generatedId, intParam, isoWeek, likePattern, placeholders, utcNow } from '../http'
+import { accessEmail } from '../access'
 
 export const plantRoutes = new Hono<{ Bindings: Env }>()
 
@@ -39,7 +40,7 @@ plantRoutes.post('/add_plant_data', async (c) => {
   if (!barcode) return errorJson(c, 'Barcode required')
   const changed = selectedFields(data)
   const existing = await first<JsonRecord>(c.env.DB.prepare('SELECT * FROM plant_data WHERE barcode = ?').bind(barcode))
-  const email = c.req.header('Cf-Access-Authenticated-User-Email') ?? c.env.DEV_USER_EMAIL ?? ''
+  const email = await accessEmail(c.req.raw, c.env)
   const statements: D1PreparedStatement[] = []
   if (existing) {
     if (changed.length) statements.push(c.env.DB.prepare(`UPDATE plant_data SET ${changed.map((f) => `${f} = ?`).join(', ')}, updated_at = ? WHERE barcode = ?`).bind(...changed.map((f) => data[f]), utcNow(), barcode))
@@ -160,7 +161,7 @@ plantRoutes.post('/bulk_upload', async (c) => {
   const { records = [] } = await c.req.json<{ records?: JsonRecord[] }>()
   if (!records.length) return errorJson(c, 'No records provided')
   if (records.length > 20) return errorJson(c, 'At most 20 records may be uploaded per request')
-  const email = c.req.header('Cf-Access-Authenticated-User-Email') ?? c.env.DEV_USER_EMAIL ?? ''
+  const email = await accessEmail(c.req.raw, c.env)
   const results: Array<{ barcode: string; action: string }> = []
   for (const data of records) {
     const barcode = typeof data.barcode === 'string' ? data.barcode : ''

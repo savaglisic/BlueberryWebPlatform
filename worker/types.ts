@@ -2,6 +2,8 @@ export interface Env {
   DB: D1Database
   VIDEOS: R2Bucket
   ASSETS: Fetcher
+  ACCESS_TEAM_DOMAIN?: string
+  ACCESS_AUD?: string
   DEV_USER_EMAIL?: string
 }
 

@@ -12,6 +12,10 @@
     }
   ],
   "observability": { "enabled": true },
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "https://sava-dev.cloudflareaccess.com",
+    "ACCESS_AUD": "66309f8cd2571bba46656f02135e513e37fcf7e29f17e3f02013b4b190f11146"
+  },
   "assets": {
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
