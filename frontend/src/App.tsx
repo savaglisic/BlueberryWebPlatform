@@ -11,6 +11,8 @@ import { DeepFlavor } from './pages/DeepFlavor'
 import { useUser } from './context/useUser'
 import { Overview } from './pages/Overview'
 import { BulkUpload } from './pages/BulkUpload'
+import { TissueLab } from './pages/TissueLab'
+import { TissueDatabase } from './pages/TissueDatabase'
 
 function AdminRoute({ element }: { element: React.ReactElement }) {
   const { isAdmin, loading } = useUser()
@@ -43,9 +45,11 @@ export default function App() {
               <Route path="/" element={<DefaultRoute />} />
               <Route path="/login" element={<DefaultRoute />} />
               <Route path="/add-samples" element={<AddSamples />} />
+              <Route path="/tissue-sample" element={<TissueLab />} />
               <Route path="/overview" element={<AdminRoute element={<Overview />} />} />
               <Route path="/fq-lab" element={<FQLab />} />
               <Route path="/fq-database" element={<AdminRoute element={<FQDatabase />} />} />
+              <Route path="/tissue-database" element={<AdminRoute element={<TissueDatabase />} />} />
               <Route path="/fq-database/yield-summary" element={<AdminRoute element={<FQDatabase />} />} />
               <Route path="/search-pedigree" element={<AdminRoute element={<SearchPedigree />} />} />
               <Route path="/sensory-panels" element={<AdminRoute element={<SensoryPanels />} />} />

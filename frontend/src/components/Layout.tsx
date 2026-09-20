@@ -29,13 +29,17 @@ import {
   IconMicroscope,
   IconLayoutDashboard,
   IconUpload,
+  IconDna,
+  IconMicroscope as IconTissueDatabase,
 } from '@tabler/icons-react'
 
 const allNavItems = [
   { label: 'Overview', path: '/overview', icon: IconLayoutDashboard, adminOnly: true },
-  { label: 'Add Samples', path: '/add-samples', icon: IconPlant2, adminOnly: false },
+  { label: 'Add FQ Samples', path: '/add-samples', icon: IconPlant2, adminOnly: false },
   { label: 'FQ Lab', path: '/fq-lab', icon: IconFlask, adminOnly: false },
   { label: 'FQ Database', path: '/fq-database', icon: IconDatabase, adminOnly: true },
+  { label: 'Tissue Sample', path: '/tissue-sample', icon: IconDna, adminOnly: false },
+  { label: 'Tissue Admin Database', path: '/tissue-database', icon: IconTissueDatabase, adminOnly: true },
   { label: 'Yield Summary', path: '/fq-database/yield-summary', icon: IconChartBar, adminOnly: true },
   { label: 'Search Pedigree', path: '/search-pedigree', icon: IconSearch, adminOnly: true },
   { label: 'Sensory Questions', path: '/sensory-panels', icon: IconMicroscope, adminOnly: true },

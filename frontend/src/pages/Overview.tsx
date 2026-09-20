@@ -234,7 +234,7 @@ export function Overview() {
           value={stats?.barcodes_created}
           icon={<IconBarcode size={16} />}
           color="blue"
-          sub="New Barcodes defined in Add Samples"
+          sub="New barcodes defined in Add FQ Samples"
           loading={statsLoading}
         />
         <StatCard

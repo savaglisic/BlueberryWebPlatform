@@ -228,7 +228,7 @@ export function AddSamples() {
   return (
     <Stack>
       <Group justify="space-between">
-        <Title order={3}>Add Samples</Title>
+        <Title order={3}>Add FQ Samples</Title>
         <Button leftSection={<IconRefresh size={16} />} variant="subtle" onClick={handleReset}>
           Reset
         </Button>

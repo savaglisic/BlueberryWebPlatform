@@ -5,6 +5,7 @@ import { configRoutes } from './routes/config'
 import { plantRoutes } from './routes/plant'
 import { analyticsRoutes } from './routes/analytics'
 import { sensoryRoutes, videoRoutes } from './routes/sensory'
+import { tissueRoutes } from './routes/tissue'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -19,6 +20,7 @@ app.route('/api', configRoutes)
 app.route('/api', plantRoutes)
 app.route('/api', analyticsRoutes)
 app.route('/api', sensoryRoutes)
+app.route('/api', tissueRoutes)
 app.route('/', videoRoutes)
 
 app.get('/api/health', (c) => c.json({ status: 'ok' }))
